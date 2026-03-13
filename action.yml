@@ -42,13 +42,25 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Detect .tool-versions
+      id: detect-versions
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version-file }}" ]; then
+          echo "file=${{ inputs.version-file }}" >> "$GITHUB_OUTPUT"
+        elif [ -z "${{ inputs.otp-version }}" ] && [ -f .tool-versions ]; then
+          echo "file=.tool-versions" >> "$GITHUB_OUTPUT"
+        else
+          echo "file=" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Setup Erlang/OTP & rebar3
       id: setup-beam
       uses: erlef/setup-beam@v1
       with:
         otp-version: ${{ inputs.otp-version }}
         rebar3-version: ${{ inputs.rebar3-version }}
-        version-file: ${{ inputs.version-file || '' }}
+        version-file: ${{ steps.detect-versions.outputs.file }}
         version-type: ${{ inputs.version-type }}
 
     - name: Restore rebar3 cache

@@ -111,14 +111,24 @@ jobs:
       postgres: true
 ```
 
-### Read versions from .tool-versions
+### Auto-detect .tool-versions
+
+If your project has a `.tool-versions` file, it will be used automatically — no configuration needed:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+```
+
+You can also point to a specific file explicitly:
 
 ```yaml
 jobs:
   ci:
     uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
-      version-file: '.tool-versions'
+      version-file: 'mise.toml'
 ```
 
 ### Mix with custom jobs
