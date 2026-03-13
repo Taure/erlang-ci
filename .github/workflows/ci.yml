@@ -109,6 +109,16 @@ on:
         type: string
         required: false
         default: ''
+      eunit-args:
+        description: 'Extra args for rebar3 eunit (e.g. --module=foo_tests,bar_tests)'
+        type: string
+        required: false
+        default: ''
+      ct-args:
+        description: 'Extra args for rebar3 ct'
+        type: string
+        required: false
+        default: ''
 
 jobs:
   compile:
@@ -206,7 +216,7 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
       - name: EUnit
-        run: rebar3 eunit ${{ inputs.enable-coverage && '--cover' || '' }}
+        run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
         run: rebar3 covertool generate
@@ -253,7 +263,7 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
       - name: EUnit
-        run: rebar3 eunit ${{ inputs.enable-coverage && '--cover' || '' }}
+        run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
         run: rebar3 covertool generate
@@ -280,7 +290,7 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
       - name: Common Test
-        run: rebar3 ct ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
+        run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
         run: rebar3 covertool generate
@@ -327,7 +337,7 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
       - name: Common Test
-        run: rebar3 ct ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
+        run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
         run: rebar3 covertool generate
