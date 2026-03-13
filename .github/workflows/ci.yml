@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         id: setup
         with:
           otp-version: ${{ inputs.otp-version }}
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -162,7 +162,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -183,7 +183,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -201,7 +201,7 @@ jobs:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -228,7 +228,7 @@ jobs:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -275,7 +275,7 @@ jobs:
       PGDATABASE: ${{ inputs.postgres-db }}
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -298,7 +298,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: novaframework/erlang-ci@v1
+      - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}

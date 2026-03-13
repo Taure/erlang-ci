@@ -20,7 +20,7 @@ on:
 
 jobs:
   ci:
-    uses: novaframework/erlang-ci/.github/workflows/ci.yml@v1
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
       otp-version: '28'
 ```
@@ -34,7 +34,7 @@ That's it. This runs: **compile → fmt → xref → dialyzer → eunit** in par
 ```yaml
 jobs:
   ci:
-    uses: novaframework/erlang-ci/.github/workflows/ci.yml@v1
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
       otp-version: '28'
       otp-matrix: '["27", "28"]'
@@ -47,7 +47,7 @@ Tests run on all OTP versions. Dialyzer, xref, and fmt run on the primary versio
 ```yaml
 jobs:
   ci:
-    uses: novaframework/erlang-ci/.github/workflows/ci.yml@v1
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
       otp-version: '28'
       enable-ct: true
@@ -60,7 +60,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: novaframework/erlang-ci/.github/workflows/ci.yml@v1
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
       otp-version: '28'
       otp-matrix: '["27", "28"]'
@@ -76,7 +76,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: novaframework/erlang-ci/.github/workflows/ci.yml@v1
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
       version-file: '.tool-versions'
 ```
@@ -88,7 +88,7 @@ If you prefer writing your own workflow but want the setup+caching handled:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: novaframework/erlang-ci@v1
+  - uses: Taure/erlang-ci@v1
     with:
       otp-version: '28'
   - run: rebar3 compile
@@ -147,7 +147,7 @@ Instead of copying ~50 lines of YAML into every Erlang project, you get:
 ```yaml
 # before: 50+ lines of setup, caching, steps, matrix config
 # after:
-uses: novaframework/erlang-ci/.github/workflows/ci.yml@v1
+uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
 with:
   otp-version: '28'
 ```
