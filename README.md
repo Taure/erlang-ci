@@ -209,10 +209,10 @@ These projects use erlang-ci:
 | Project | Config |
 |---------|--------|
 | [Nova](https://github.com/novaframework/nova) | OTP matrix 26/27/28, fmt, + nova_request_app integration |
-| [Kura](https://github.com/novaframework/kura) | PostgreSQL, CT, eunit, ex_doc, + release job |
-| [rebar3_fly](https://github.com/novaframework/rebar3_fly) | OTP matrix 27/28, ex_doc |
-| [rebar3_kura](https://github.com/novaframework/rebar3_kura) | OTP matrix 27/28 |
-| [rebar3_audit](https://github.com/novaframework/rebar3_audit) | Standard + custom dogfood job |
+| [Kura](https://github.com/Taure/kura) | PostgreSQL, CT, eunit, ex_doc, + release job |
+| [rebar3_fly](https://github.com/Taure/rebar3_fly) | OTP matrix 27/28, ex_doc |
+| [rebar3_kura](https://github.com/Taure/rebar3_kura) | OTP matrix 27/28 |
+| [rebar3_audit](https://github.com/Taure/rebar3_audit) | Standard + custom dogfood job |
 
 ## What this replaces
 
