@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { renderAuditSummary, renderAuditSection, renderSbomSection, renderSummary } = require('./ci-summary');
+const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderSummary } = require('./ci-summary');
 
 describe('renderAuditSection', () => {
   it('returns null for empty input', () => {
@@ -146,6 +146,46 @@ describe('renderSbomSection', () => {
   });
 });
 
+describe('renderIgnoredSection', () => {
+  it('returns null for empty input', () => {
+    assert.equal(renderIgnoredSection(''), null);
+    assert.equal(renderIgnoredSection(null), null);
+    assert.equal(renderIgnoredSection('   '), null);
+  });
+
+  it('returns null for empty ignored list', () => {
+    const json = JSON.stringify({ ignored: [] });
+    assert.equal(renderIgnoredSection(json), null);
+  });
+
+  it('renders ignored CVEs in collapsible section', () => {
+    const json = JSON.stringify({
+      ignored: [
+        { id: 'CVE-2025-48041', reason: 'Fixed in 28.0.3, running 28.4.1 — SSH_FXP_OPENDIR issue' },
+        { id: 'CVE-2025-4748', reason: 'Fixed in 28.0.1, running 28.4.1 — Absolute Path in Zip Module' },
+      ]
+    });
+    const lines = renderIgnoredSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes('2 OTP CVEs auto-ignored'));
+    assert.ok(text.includes('already fixed in running version'));
+    assert.ok(text.includes('<details>'));
+    assert.ok(text.includes('[CVE-2025-48041]'));
+    assert.ok(text.includes('[CVE-2025-4748]'));
+    assert.ok(text.includes('NVD data'));
+    assert.ok(text.includes('.trivyignore'));
+  });
+
+  it('uses singular for single CVE', () => {
+    const json = JSON.stringify({
+      ignored: [{ id: 'CVE-2025-1234', reason: 'Fixed in 28.0.1' }]
+    });
+    const lines = renderIgnoredSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes('1 OTP CVE auto-ignored'));
+  });
+});
+
 describe('renderSummary', () => {
   it('returns null when no data', () => {
     assert.equal(renderSummary({}), null);
@@ -195,6 +235,22 @@ describe('renderSummary', () => {
     assert.ok(result.includes(':package:'));
     assert.ok(!result.includes(':shield:'));
     assert.ok(!result.includes('---'));
+  });
+
+  it('renders ignored section alongside sbom', () => {
+    const sbom = JSON.stringify({ vulnerabilities: [] });
+    const ignored = JSON.stringify({ ignored: [{ id: 'CVE-2025-48041', reason: 'Fixed in 28.0.3' }] });
+    const result = renderSummary({ sbom, ignored });
+    assert.ok(result.includes(':package:'));
+    assert.ok(result.includes('1 OTP CVE auto-ignored'));
+    assert.ok(result.includes('<details>'));
+  });
+
+  it('renders ignored section alone', () => {
+    const ignored = JSON.stringify({ ignored: [{ id: 'CVE-2025-48041', reason: 'Fixed in 28.0.3' }] });
+    const result = renderSummary({ ignored });
+    assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
+    assert.ok(result.includes('1 OTP CVE auto-ignored'));
   });
 });
 
