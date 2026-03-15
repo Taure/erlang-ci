@@ -48,6 +48,7 @@ runs:
       env:
         INPUT_VERSION_FILE: ${{ inputs.version-file }}
         INPUT_OTP_VERSION: ${{ inputs.otp-version }}
+        INPUT_REBAR3_VERSION: ${{ inputs.rebar3-version }}
         INPUT_VERSION_TYPE: ${{ inputs.version-type }}
       run: bash "${{ github.action_path }}/scripts/detect-versions.sh"
 
@@ -55,8 +56,8 @@ runs:
       id: setup-beam
       uses: erlef/setup-beam@0a75ccf1c18916f948584bdc83392d72e26f58f7 # v1
       with:
-        otp-version: ${{ inputs.otp-version }}
-        rebar3-version: ${{ inputs.rebar3-version }}
+        otp-version: ${{ steps.detect-versions.outputs.otp-version }}
+        rebar3-version: ${{ steps.detect-versions.outputs.rebar3-version }}
         version-file: ${{ steps.detect-versions.outputs.file }}
         version-type: ${{ steps.detect-versions.outputs.version-type }}
 
