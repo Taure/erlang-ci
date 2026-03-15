@@ -49,23 +49,7 @@ runs:
         INPUT_VERSION_FILE: ${{ inputs.version-file }}
         INPUT_OTP_VERSION: ${{ inputs.otp-version }}
         INPUT_VERSION_TYPE: ${{ inputs.version-type }}
-      run: |
-        if [ -n "$INPUT_VERSION_FILE" ]; then
-          echo "file=$INPUT_VERSION_FILE" >> "$GITHUB_OUTPUT"
-        elif [ -z "$INPUT_OTP_VERSION" ] && [ -f .tool-versions ]; then
-          echo "file=.tool-versions" >> "$GITHUB_OUTPUT"
-        else
-          echo "file=" >> "$GITHUB_OUTPUT"
-        fi
-
-        # Default to strict when using version-file, loose otherwise
-        if [ -n "$INPUT_VERSION_TYPE" ]; then
-          echo "version-type=$INPUT_VERSION_TYPE" >> "$GITHUB_OUTPUT"
-        elif [ -n "$INPUT_VERSION_FILE" ] || { [ -z "$INPUT_OTP_VERSION" ] && [ -f .tool-versions ]; }; then
-          echo "version-type=strict" >> "$GITHUB_OUTPUT"
-        else
-          echo "version-type=loose" >> "$GITHUB_OUTPUT"
-        fi
+      run: bash "${{ github.action_path }}/scripts/detect-versions.sh"
 
     - name: Setup Erlang/OTP & rebar3
       id: setup-beam

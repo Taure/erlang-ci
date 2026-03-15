@@ -21,6 +21,8 @@ jobs:
         run: node --test scripts/ci-summary.test.js
       - name: Run start-services tests
         run: bash scripts/start-services.test.sh
+      - name: Run detect-versions tests
+        run: bash scripts/detect-versions.test.sh
 
   lint:
     name: Lint Workflows
@@ -61,6 +63,27 @@ jobs:
       - uses: ./
         with:
           otp-version: '28'
+
+  # Test version-file support with auto-detected version-type
+  integration-version-file:
+    name: Integration (version-file)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: ./
+        id: setup
+        with:
+          version-file: 'test/fixtures/.tool-versions'
+      - name: Verify OTP version
+        run: |
+          actual="${{ steps.setup.outputs.otp-version }}"
+          echo "Installed OTP: $actual"
+          [[ "$actual" == 28.4.1* ]] || { echo "Expected 28.4.1, got $actual"; exit 1; }
+      - name: Compile fixture
+        working-directory: test/fixtures
+        run: rebar3 compile
 
       # --- Compile (mirrors ci.yml compile job) ---
       - name: Compile fixture
