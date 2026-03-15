@@ -182,6 +182,9 @@ jobs:
 jobs:
   ci:
     uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    permissions:
+      contents: write
+      pull-requests: write
     with:
       otp-version: '28'
       otp-matrix: '["27", "28"]'
@@ -476,6 +479,7 @@ jobs:
 | `otp-version` | `28` | Erlang/OTP version |
 | `rebar3-version` | `3` | Rebar3 version |
 | `version-file` | — | Read versions from `.tool-versions` or `mise.toml` |
+| `version-type` | — | Version match type (`strict` or `loose`). Defaults to `strict` when `version-file` is set |
 | `otp-matrix` | — | JSON array of OTP versions for matrix testing (e.g. `'["27","28"]'`) |
 
 ### Steps
@@ -490,11 +494,17 @@ jobs:
 | `enable-ex-doc` | `false` | Run `rebar3 ex_doc` |
 | `enable-audit` | `false` | Run `rebar3 audit` (dep vulnerability scanning) |
 | `audit-level` | `low` | Minimum severity to fail on (`critical`, `high`, `medium`, `low`) |
-| `enable-coverage` | `false` | Coverage via covertool + Codecov upload |
+| `enable-coverage` | `false` | Coverage via covertool (reported in PR summary) |
 | `enable-sbom` | `false` | Generate CycloneDX SBOM via `rebar3 sbom` |
 | `enable-sbom-scan` | `false` | Scan SBOM for vulnerabilities using Grype (requires `enable-sbom`) |
 | `enable-dependency-submission` | `false` | Submit deps to GitHub Dependency Graph |
-| `enable-summary` | `true` | Post CI summary comment on PRs (audit + SBOM scan results) |
+| `enable-summary` | `true` | Post CI summary comment on PRs (coverage, audit, SBOM scan results) |
+
+### Caching (composite action only)
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `cache-key-prefix` | `erlang-ci` | Custom cache key prefix for cache isolation |
 
 ### PostgreSQL
 
@@ -526,9 +536,16 @@ jobs:
 
 ## PR summary comment
 
-When `enable-summary` is enabled and any security scanning is active (`enable-audit` or `enable-sbom-scan`), a single unified comment is posted on PRs with all scan results. The comment is updated on re-runs (never duplicated).
+When `enable-summary` is enabled and any reporting feature is active (`enable-coverage`, `enable-audit`, or `enable-sbom-scan`), a single unified comment is posted on PRs with all results. The comment is updated on re-runs (never duplicated).
 
 Requires `pull-requests: write` permission on the caller's `ci` job.
+
+### Coverage (`enable-coverage`)
+
+> ### 🟢 Code Coverage — 87.3%
+> 1042 of 1193 lines covered.
+
+The badge color reflects coverage level: green (90%+), yellow (70%+), orange (50%+), red (below 50%).
 
 ### Security Audit (`enable-audit`)
 
