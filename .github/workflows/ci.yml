@@ -435,24 +435,42 @@ jobs:
           output: trivy-results.json
           severity: HIGH,CRITICAL
           exit-code: '1'
-          trivyignores: .trivyignore
-      - name: Extract scan results
+      - name: Extract and filter scan results
         if: ${{ inputs.enable-sbom-scan }}
         id: scan-extract
         run: |
           if [ ! -f trivy-results.json ]; then exit 0; fi
+
+          # Build list of ignored CVE IDs from .trivyignore
+          ignored_ids=""
+          if [ -f .trivyignore ]; then
+            ignored_ids=$(grep -v '^#' .trivyignore | grep -v '^\s*$' | awk '{print $1}' | jq -Rsc 'split("\n") | map(select(. != ""))')
+          else
+            ignored_ids='[]'
+          fi
+
+          # Extract all vulns, then filter out ignored ones for the "new" count
+          all_vulns=$(jq -c '{vulnerabilities: [.Results[]?.Vulnerabilities[]? | {id: .VulnerabilityID, severity: .Severity, package: .PkgName, version: .InstalledVersion, fixed_version: (.FixedVersion // ""), url: (.PrimaryURL // "")}]}' trivy-results.json)
+          new_vulns=$(echo "$all_vulns" | jq -c --argjson ignored "$ignored_ids" '{vulnerabilities: [.vulnerabilities[] | select(.id as $id | ($ignored | index($id)) | not)]}')
+
           echo "json<<SCAN_EOF" >> "$GITHUB_OUTPUT"
-          jq -c '{vulnerabilities: [.Results[]?.Vulnerabilities[]? | {id: .VulnerabilityID, severity: .Severity, package: .PkgName, version: .InstalledVersion, fixed_version: (.FixedVersion // ""), url: (.PrimaryURL // "")}]}' trivy-results.json >> "$GITHUB_OUTPUT"
+          echo "$new_vulns" >> "$GITHUB_OUTPUT"
           echo "SCAN_EOF" >> "$GITHUB_OUTPUT"
+
+          # Count truly new vulnerabilities (not in ignore list)
+          new_count=$(echo "$new_vulns" | jq '.vulnerabilities | length')
+          echo "new-count=$new_count" >> "$GITHUB_OUTPUT"
       - name: Upload SBOM
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
           path: bom.xml
-      - name: Fail if vulnerabilities found
-        if: ${{ steps.trivy.outcome == 'failure' }}
-        run: exit 1
+      - name: Fail if new vulnerabilities found
+        if: ${{ steps.scan-extract.outputs.new-count > 0 }}
+        run: |
+          echo "Found ${{ steps.scan-extract.outputs.new-count }} vulnerabilities not in .trivyignore"
+          exit 1
 
   dependency-submission:
     name: Dependency Submission
