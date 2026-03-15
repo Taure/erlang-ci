@@ -3,6 +3,23 @@
 # Used by CI test jobs to set up services before running tests.
 set -euo pipefail
 
+if [ "${ENABLE_POSTGRES:-false}" = "true" ]; then
+  echo "Starting PostgreSQL ${POSTGRES_VERSION}..."
+  docker run -d --name postgres \
+    -p "${PGPORT}:5432" \
+    -e POSTGRES_USER="${PGUSER}" \
+    -e POSTGRES_PASSWORD="${PGPASSWORD}" \
+    -e POSTGRES_DB="${PGDATABASE}" \
+    "postgres:${POSTGRES_VERSION}"
+
+  echo "Waiting for PostgreSQL..."
+  for i in $(seq 1 30); do
+    docker exec postgres pg_isready -U "${PGUSER}" > /dev/null 2>&1 && break
+    sleep 1
+  done
+  echo "PostgreSQL ready."
+fi
+
 if [ "${ENABLE_KAFKA:-false}" = "true" ]; then
   echo "Starting Kafka ${KAFKA_VERSION}..."
   docker run -d --name kafka \

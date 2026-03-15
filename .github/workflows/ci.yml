@@ -258,7 +258,7 @@ jobs:
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
     needs: compile
-    if: ${{ inputs.enable-eunit && !inputs.postgres }}
+    if: ${{ inputs.enable-eunit && !inputs.postgres && !inputs.kafka }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -270,74 +270,7 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
-      - name: Start services
-        if: ${{ inputs.kafka }}
-        env:
-          ENABLE_KAFKA: ${{ inputs.kafka }}
-          KAFKA_VERSION: ${{ inputs.kafka-version }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
-        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: EUnit
-        env:
-          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
-        run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
-      - name: Generate coverage
-        if: ${{ inputs.enable-coverage }}
-        run: rebar3 covertool generate
-      - name: Upload coverage
-        if: ${{ inputs.enable-coverage }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: _build/test/covertool/*.covertool.xml
-          flags: eunit
-
-  eunit-postgres:
-    name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
-    needs: compile
-    if: ${{ inputs.enable-eunit && inputs.postgres }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: postgres:${{ inputs.postgres-version }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-    env:
-      PGHOST: localhost
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ matrix.otp }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-      - name: Start services
-        if: ${{ inputs.kafka }}
-        env:
-          ENABLE_KAFKA: ${{ inputs.kafka }}
-          KAFKA_VERSION: ${{ inputs.kafka-version }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
-        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
-      - name: EUnit
-        env:
-          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
@@ -352,7 +285,7 @@ jobs:
   ct:
     name: Common Test${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
     needs: compile
-    if: ${{ inputs.enable-ct && !inputs.postgres }}
+    if: ${{ inputs.enable-ct && !inputs.postgres && !inputs.kafka }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -364,17 +297,7 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
-      - name: Start services
-        if: ${{ inputs.kafka }}
-        env:
-          ENABLE_KAFKA: ${{ inputs.kafka }}
-          KAFKA_VERSION: ${{ inputs.kafka-version }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
-        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: Common Test
-        env:
-          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
@@ -386,35 +309,23 @@ jobs:
           files: _build/test/covertool/*.covertool.xml
           flags: ct
 
-  ct-postgres:
-    name: Common Test${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
+  test-services:
+    name: Tests${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
     needs: compile
-    if: ${{ inputs.enable-ct && inputs.postgres }}
+    if: ${{ (inputs.enable-eunit || inputs.enable-ct) && (inputs.postgres || inputs.kafka) }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: postgres:${{ inputs.postgres-version }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - ${{ inputs.postgres-port }}:5432
     env:
-      PGHOST: localhost
+      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
       PGPORT: ${{ inputs.postgres-port }}
       PGUSER: ${{ inputs.postgres-user }}
       PGPASSWORD: ${{ inputs.postgres-password }}
       PGDATABASE: ${{ inputs.postgres-db }}
+      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@v4
       - uses: Taure/erlang-ci@v1
@@ -422,16 +333,17 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
       - name: Start services
-        if: ${{ inputs.kafka }}
         env:
+          ENABLE_POSTGRES: ${{ inputs.postgres }}
+          POSTGRES_VERSION: ${{ inputs.postgres-version }}
           ENABLE_KAFKA: ${{ inputs.kafka }}
           KAFKA_VERSION: ${{ inputs.kafka-version }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
+      - name: EUnit
+        if: ${{ inputs.enable-eunit }}
+        run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Common Test
-        env:
-          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-          KAFKA_PORT: ${{ inputs.kafka-port }}
+        if: ${{ inputs.enable-ct }}
         run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
@@ -441,7 +353,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: _build/test/covertool/*.covertool.xml
-          flags: ct
+          flags: tests
 
   sbom:
     name: SBOM
