@@ -148,6 +148,33 @@ jobs:
       postgres-db: 'myapp_test'
 ```
 
+### Application with Kafka
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+      enable-ct: true
+      kafka: true
+```
+
+Kafka is available at `localhost:9092`. The environment variables `KAFKA_HOST` and `KAFKA_PORT` are set for test configuration.
+
+### Application with PostgreSQL and Kafka
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+      enable-ct: true
+      postgres: true
+      kafka: true
+```
+
 ### Full pipeline with everything enabled
 
 ```yaml
@@ -475,6 +502,14 @@ jobs:
 | `postgres-user` | `postgres` | Username |
 | `postgres-password` | `postgres` | Password |
 | `postgres-port` | `5432` | Host port |
+
+### Kafka
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `kafka` | `false` | Enable Kafka service for eunit and CT |
+| `kafka-version` | `3.9` | Apache Kafka Docker image version |
+| `kafka-port` | `9092` | Broker port |
 
 ### Test configuration
 

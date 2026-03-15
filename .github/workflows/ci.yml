@@ -108,6 +108,23 @@ on:
         required: false
         default: '5432'
 
+      # Kafka
+      kafka:
+        description: 'Enable Kafka service container'
+        type: boolean
+        required: false
+        default: false
+      kafka-version:
+        description: 'Kafka Docker image version (uses apache/kafka)'
+        type: string
+        required: false
+        default: '3.9'
+      kafka-port:
+        description: 'Kafka broker port'
+        type: string
+        required: false
+        default: '9092'
+
       # Summary
       enable-summary:
         description: 'Post a status summary comment on PRs'
@@ -241,65 +258,34 @@ jobs:
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
     needs: compile
-    if: ${{ inputs.enable-eunit && !inputs.postgres }}
+    if: ${{ inputs.enable-eunit }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ matrix.otp }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-      - name: EUnit
-        run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
-      - name: Generate coverage
-        if: ${{ inputs.enable-coverage }}
-        run: rebar3 covertool generate
-      - name: Upload coverage
-        if: ${{ inputs.enable-coverage }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: _build/test/covertool/*.covertool.xml
-          flags: eunit
-
-  eunit-postgres:
-    name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
-    needs: compile
-    if: ${{ inputs.enable-eunit && inputs.postgres }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: postgres:${{ inputs.postgres-version }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - ${{ inputs.postgres-port }}:5432
     env:
-      PGHOST: localhost
+      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
       PGPORT: ${{ inputs.postgres-port }}
       PGUSER: ${{ inputs.postgres-user }}
       PGPASSWORD: ${{ inputs.postgres-password }}
       PGDATABASE: ${{ inputs.postgres-db }}
+      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@v4
       - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+      - name: Start services
+        if: ${{ inputs.postgres || inputs.kafka }}
+        env:
+          ENABLE_POSTGRES: ${{ inputs.postgres }}
+          POSTGRES_VERSION: ${{ inputs.postgres-version }}
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: EUnit
         run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
@@ -315,65 +301,34 @@ jobs:
   ct:
     name: Common Test${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
     needs: compile
-    if: ${{ inputs.enable-ct && !inputs.postgres }}
+    if: ${{ inputs.enable-ct }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ matrix.otp }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-      - name: Common Test
-        run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
-      - name: Generate coverage
-        if: ${{ inputs.enable-coverage }}
-        run: rebar3 covertool generate
-      - name: Upload coverage
-        if: ${{ inputs.enable-coverage }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: _build/test/covertool/*.covertool.xml
-          flags: ct
-
-  ct-postgres:
-    name: Common Test${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
-    needs: compile
-    if: ${{ inputs.enable-ct && inputs.postgres }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: postgres:${{ inputs.postgres-version }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - ${{ inputs.postgres-port }}:5432
     env:
-      PGHOST: localhost
+      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
       PGPORT: ${{ inputs.postgres-port }}
       PGUSER: ${{ inputs.postgres-user }}
       PGPASSWORD: ${{ inputs.postgres-password }}
       PGDATABASE: ${{ inputs.postgres-db }}
+      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@v4
       - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+      - name: Start services
+        if: ${{ inputs.postgres || inputs.kafka }}
+        env:
+          ENABLE_POSTGRES: ${{ inputs.postgres }}
+          POSTGRES_VERSION: ${{ inputs.postgres-version }}
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: Common Test
         run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
