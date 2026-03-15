@@ -108,6 +108,13 @@ on:
         required: false
         default: '5432'
 
+      # Summary
+      enable-summary:
+        description: 'Post a status summary comment on PRs'
+        type: boolean
+        required: false
+        default: true
+
       # Extra
       ct-config:
         description: 'Path to CT sys.config file (passed as --sys_config)'
@@ -402,3 +409,97 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
       - run: rebar3 ex_doc
+
+  summary:
+    name: Summary
+    if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' }}
+    needs:
+      - compile
+      - fmt
+      - xref
+      - dialyzer
+      - eunit
+      - eunit-postgres
+      - ct
+      - ct-postgres
+      - audit
+      - sbom
+      - dependency-submission
+      - ex-doc
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post summary comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = {
+              'Compile': '${{ needs.compile.result }}',
+              'Format': '${{ needs.fmt.result }}',
+              'Xref': '${{ needs.xref.result }}',
+              'Dialyzer': '${{ needs.dialyzer.result }}',
+              'EUnit': '${{ needs.eunit.result }}',
+              'EUnit (PostgreSQL)': '${{ needs.eunit-postgres.result }}',
+              'Common Test': '${{ needs.ct.result }}',
+              'Common Test (PostgreSQL)': '${{ needs.ct-postgres.result }}',
+              'Audit': '${{ needs.audit.result }}',
+              'SBOM': '${{ needs.sbom.result }}',
+              'Dependency Submission': '${{ needs.dependency-submission.result }}',
+              'Documentation': '${{ needs.ex-doc.result }}',
+            };
+
+            const icon = {
+              success: ':white_check_mark:',
+              failure: ':x:',
+              cancelled: ':no_entry_sign:',
+            };
+
+            const rows = Object.entries(results)
+              .filter(([_, result]) => result !== 'skipped' && result !== '')
+              .map(([name, result]) => `| ${icon[result] || ':grey_question:'} | ${name} | ${result} |`);
+
+            if (rows.length === 0) return;
+
+            const allPassed = Object.entries(results)
+              .filter(([_, r]) => r !== 'skipped' && r !== '')
+              .every(([_, r]) => r === 'success');
+
+            const header = allPassed
+              ? ':white_check_mark: **All checks passed**'
+              : ':x: **Some checks failed**';
+
+            const body = [
+              '<!-- erlang-ci-summary -->',
+              header,
+              '',
+              '| | Check | Result |',
+              '|---|---|---|',
+              ...rows,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.body && c.body.includes('<!-- erlang-ci-summary -->')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
