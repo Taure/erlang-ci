@@ -49,8 +49,10 @@ jobs:
       - name: Run zizmor
         run: $HOME/.local/bin/zizmor -c .zizmor.yml --min-severity medium --min-confidence medium .
 
-  self-test:
-    name: Self Test
+  # Integration tests: run the exact same commands used in ci.yml
+  # against the test fixture to catch CLI flag mismatches early
+  integration:
+    name: Integration Tests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -59,18 +61,50 @@ jobs:
       - uses: ./
         with:
           otp-version: '28'
+
+      # --- Compile (mirrors ci.yml compile job) ---
       - name: Compile fixture
         working-directory: test/fixtures
         run: rebar3 compile
+
+      # --- Format (mirrors ci.yml fmt job) ---
       - name: Format check
         working-directory: test/fixtures
         run: rebar3 fmt --check
+
+      # --- Xref (mirrors ci.yml xref job) ---
       - name: Xref
         working-directory: test/fixtures
         run: rebar3 xref
+
+      # --- Dialyzer (mirrors ci.yml dialyzer job) ---
       - name: Dialyzer
         working-directory: test/fixtures
         run: rebar3 dialyzer
+
+      # --- EUnit (mirrors ci.yml eunit job) ---
       - name: EUnit
         working-directory: test/fixtures
         run: rebar3 eunit
+
+      # --- Common Test (mirrors ci.yml ct job) ---
+      - name: Common Test
+        working-directory: test/fixtures
+        run: rebar3 ct
+
+      # --- Audit (mirrors ci.yml audit job command) ---
+      - name: Audit
+        working-directory: test/fixtures
+        run: rebar3 audit --format json --level low
+
+      # --- SBOM (mirrors ci.yml sbom job command) ---
+      - name: SBOM generate
+        working-directory: test/fixtures
+        run: |
+          rebar3 sbom --output bom.xml --force
+          test -f bom.xml || { echo "bom.xml not generated"; exit 1; }
+
+      # --- Documentation (mirrors ci.yml ex-doc job) ---
+      - name: Documentation
+        working-directory: test/fixtures
+        run: rebar3 ex_doc

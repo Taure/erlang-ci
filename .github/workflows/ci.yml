@@ -393,14 +393,14 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
       - name: Generate SBOM
-        run: rebar3 sbom --format json --output bom.json
+        run: rebar3 sbom --output bom.xml --force
       - name: Scan SBOM for vulnerabilities
         if: ${{ inputs.enable-sbom-scan }}
         id: grype
         continue-on-error: true
         uses: anchore/scan-action@7037fa011853d5a11690026fb85feee79f4c946c # v7
         with:
-          sbom: bom.json
+          sbom: bom.xml
           fail-build: true
           severity-cutoff: high
           output-format: json
@@ -418,7 +418,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
-          path: bom.json
+          path: bom.xml
       - name: Fail if vulnerabilities found
         if: ${{ steps.grype.outcome == 'failure' }}
         run: exit 1

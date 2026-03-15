@@ -3,5 +3,7 @@
     {vsn, "0.1.0"},
     {registered, []},
     {applications, [kernel, stdlib]},
-    {modules, [fixture]}
+    {modules, []},
+    {licenses, ["MIT"]},
+    {links, [{"GitHub", "https://github.com/Taure/erlang-ci"}]}
 ]}.
