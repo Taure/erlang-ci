@@ -427,8 +427,6 @@ jobs:
       - dependency-submission
       - ex-doc
     runs-on: ubuntu-24.04
-    permissions:
-      pull-requests: write
     steps:
       - name: Post summary comment
         uses: actions/github-script@v7
