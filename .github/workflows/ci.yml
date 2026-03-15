@@ -208,6 +208,8 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-audit }}
     runs-on: ubuntu-24.04
+    outputs:
+      report: ${{ steps.audit.outputs.report }}
     steps:
       - uses: actions/checkout@v4
       - uses: Taure/erlang-ci@v1
@@ -215,7 +217,15 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
-      - run: rebar3 audit
+      - name: Run audit
+        id: audit
+        run: |
+          output=$(rebar3 audit 2>&1) || true
+          echo "report<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
+          echo "$output" >> "$GITHUB_OUTPUT"
+          echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
+          # Fail the job if audit found vulnerabilities
+          echo "$output" | grep -qi "no known vulnerabilities" || exit 1
 
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
@@ -465,6 +475,16 @@ jobs:
               ? ':white_check_mark: **All checks passed**'
               : ':x: **Some checks failed**';
 
+            const sections = [];
+
+            const auditReport = `${{ needs.audit.outputs.report }}`.trim();
+            if (auditReport) {
+              sections.push('### Audit');
+              sections.push('```');
+              sections.push(auditReport);
+              sections.push('```');
+            }
+
             const body = [
               '<!-- erlang-ci-summary -->',
               header,
@@ -472,6 +492,7 @@ jobs:
               '| | Check | Result |',
               '|---|---|---|',
               ...rows,
+              ...(sections.length > 0 ? ['', ...sections] : []),
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
