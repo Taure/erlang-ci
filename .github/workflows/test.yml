@@ -17,8 +17,8 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - name: Run audit-summary tests
-        run: node --test scripts/audit-summary.test.js
+      - name: Run ci-summary tests
+        run: node --test scripts/ci-summary.test.js
       - name: Run start-services tests
         run: bash scripts/start-services.test.sh
 
