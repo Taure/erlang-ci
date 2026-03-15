@@ -21,11 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install actionlint
-        run: |
-          curl -sL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_linux_amd64.tar.gz | tar xz
-          sudo mv actionlint /usr/local/bin/
+        run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
       - name: Lint workflows
-        run: actionlint
+        run: ./actionlint
 
   self-test:
     name: Self Test
