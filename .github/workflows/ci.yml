@@ -60,6 +60,11 @@ on:
         type: boolean
         required: false
         default: false
+      audit-level:
+        description: 'Minimum severity to fail on (critical, high, medium, low)'
+        type: string
+        required: false
+        default: 'low'
       enable-coverage:
         description: 'Enable code coverage (--cover flag + covertool)'
         type: boolean
@@ -253,8 +258,10 @@ jobs:
           version-file: ${{ inputs.version-file }}
       - name: Run audit
         id: audit
+        env:
+          AUDIT_LEVEL: ${{ inputs.audit-level }}
         run: |
-          output=$(rebar3 audit --format json 2>&1)
+          output=$(rebar3 audit --format json --level "$AUDIT_LEVEL" 2>&1)
           rc=$?
           # When no vulns, rebar3_audit outputs human text regardless of format flag
           # When vulns exist, JSON is written to stdout via io:put_chars
@@ -374,6 +381,8 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-sbom }}
     runs-on: ubuntu-24.04
+    outputs:
+      grype-json: ${{ steps.grype-extract.outputs.json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -387,16 +396,32 @@ jobs:
         run: rebar3 sbom --format json --output bom.json
       - name: Scan SBOM for vulnerabilities
         if: ${{ inputs.enable-sbom-scan }}
+        id: grype
+        continue-on-error: true
         uses: anchore/scan-action@7037fa011853d5a11690026fb85feee79f4c946c # v7
         with:
           sbom: bom.json
           fail-build: true
           severity-cutoff: high
+          output-format: json
+          output-file: grype-results.json
+      - name: Extract scan results
+        if: ${{ inputs.enable-sbom-scan }}
+        id: grype-extract
+        run: |
+          if [ ! -f grype-results.json ]; then exit 0; fi
+          echo "json<<GRYPE_EOF" >> "$GITHUB_OUTPUT"
+          jq -c '{matches: [.matches[]? | {id: .vulnerability.id, severity: .vulnerability.severity, package: .artifact.name, version: .artifact.version, fix_versions: (.vulnerability.fix.versions // []), fix_state: (.vulnerability.fix.state // "unknown"), url: (.vulnerability.dataSource // "")}]}' grype-results.json >> "$GITHUB_OUTPUT"
+          echo "GRYPE_EOF" >> "$GITHUB_OUTPUT"
       - name: Upload SBOM
+        if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
           path: bom.json
+      - name: Fail if vulnerabilities found
+        if: ${{ steps.grype.outcome == 'failure' }}
+        run: exit 1
 
   dependency-submission:
     name: Dependency Submission
@@ -428,7 +453,7 @@ jobs:
   summary:
     name: Summary
     if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' }}
-    needs: [audit]
+    needs: [audit, sbom]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -439,11 +464,17 @@ jobs:
           persist-credentials: false
       - name: Post summary comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          AUDIT_JSON: ${{ needs.audit.outputs.json }}
+          SBOM_JSON: ${{ needs.sbom.outputs.grype-json }}
         with:
           script: |
-            const { renderAuditSummary } = require('./scripts/audit-summary');
-            const body = renderAuditSummary(`${{ needs.audit.outputs.json }}`);
-            if (!body || '${{ needs.audit.result }}' === 'skipped') return;
+            const { renderSummary } = require('./scripts/ci-summary');
+            const body = renderSummary({
+              audit: process.env.AUDIT_JSON,
+              sbom: process.env.SBOM_JSON,
+            });
+            if (!body) return;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
