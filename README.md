@@ -229,13 +229,49 @@ The composite action handles:
 
 ## Extending with custom jobs
 
-Reusable workflows run as complete jobs — you cannot inject steps into them. Instead, add your own jobs **alongside** the reusable workflow and chain them with `needs:`.
+Reusable workflows run as complete jobs — you cannot inject steps into them. Instead, add your own jobs **alongside** the reusable workflow and use `needs:` to control execution order.
 
-This is the recommended pattern for adding company-internal steps like black-box testing, security scanning, deployment, or any custom logic.
+### How `needs:` chaining works
 
-### Adding jobs after CI
+Every job in a workflow file runs in parallel by default. Adding `needs: job_name` makes a job wait until `job_name` completes successfully. This is how you build a pipeline:
 
-Run custom jobs after the standard pipeline completes:
+```
+ci ──► black-box ──► release
+```
+
+```yaml
+jobs:
+  ci:                              # 1. runs first (no needs)
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+
+  black-box:                       # 2. runs after ci passes
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Taure/erlang-ci@v1
+        with:
+          otp-version: '28'
+      - run: rebar3 release
+      - run: ./scripts/black_box_tests.sh
+
+  release:                         # 3. runs after black-box passes, only on merge
+    needs: black-box
+    if: github.event_name == 'push'
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v1
+    permissions:
+      contents: write
+```
+
+You can require multiple jobs with a list — the job waits for all of them:
+
+```
+       ┌─ ci ──────────┐
+start ─┤               ├─► deploy
+       └─ security ────┘
+```
 
 ```yaml
 jobs:
@@ -243,9 +279,48 @@ jobs:
     uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
     with:
       otp-version: '28'
-      enable-audit: true
 
-  black-box-test:
+  security:                        # runs in parallel with ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: company/security-scanner@v2
+
+  deploy:                          # waits for both ci AND security
+    needs: [ci, security]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: company/deploy-action@v1
+```
+
+### Full example: CI → black-box → deploy → release
+
+```
+ci ──► black-box ──► deploy-staging ──► release
+```
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      otp-version: '28'
+      enable-ct: true
+      enable-audit: true
+      postgres: true
+
+  black-box:
     needs: ci
     runs-on: ubuntu-latest
     steps:
@@ -257,40 +332,20 @@ jobs:
       - run: ./scripts/black_box_tests.sh
 
   deploy-staging:
-    needs: [ci, black-box-test]
+    needs: black-box
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: company/deploy-action@v1
         with:
           environment: staging
-```
 
-### Adding jobs in parallel with CI
-
-Jobs that don't depend on CI results can run in parallel:
-
-```yaml
-jobs:
-  ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
-    with:
-      otp-version: '28'
-
-  # Runs alongside CI, not after it
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: company/security-scanner@v2
-
-  # Needs both to pass before deploying
-  deploy:
-    needs: [ci, security-scan]
+  release:
+    needs: deploy-staging
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: company/deploy-action@v1
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v1
+    permissions:
+      contents: write
 ```
 
 ### Company-internal reusable workflow wrapping erlang-ci
