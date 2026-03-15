@@ -403,8 +403,9 @@ jobs:
           pattern: coverdata-*
           merge-multiple: true
           path: _build/test/cover
-      - name: Merge coverdata and generate report
+      - name: Compile and generate coverage report
         run: |
+          rebar3 compile
           echo "Coverdata files:"
           ls -la _build/test/cover/*.coverdata 2>/dev/null || echo "No coverdata files found"
           rebar3 covertool generate
