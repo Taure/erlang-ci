@@ -208,29 +208,6 @@ jobs:
       version-file: 'mise.toml'
 ```
 
-### Mix with custom jobs
-
-Use the reusable workflow for the standard pipeline, then add custom jobs alongside:
-
-```yaml
-jobs:
-  ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
-    with:
-      otp-version: '28'
-
-  integration:
-    needs: ci
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: '28'
-      - run: rebar3 compile
-      - run: ./scripts/integration_test.sh
-```
-
 ### Standalone setup action
 
 If you prefer writing your own workflow but want the setup and caching handled:
@@ -249,6 +226,162 @@ The composite action handles:
 - Installing Erlang/OTP and rebar3 via [erlef/setup-beam](https://github.com/erlef/setup-beam)
 - Caching `~/.cache/rebar3` (hex packages, plugins)
 - Caching `_build` (compiled dependencies)
+
+## Extending with custom jobs
+
+Reusable workflows run as complete jobs — you cannot inject steps into them. Instead, add your own jobs **alongside** the reusable workflow and chain them with `needs:`.
+
+This is the recommended pattern for adding company-internal steps like black-box testing, security scanning, deployment, or any custom logic.
+
+### Adding jobs after CI
+
+Run custom jobs after the standard pipeline completes:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+      enable-audit: true
+
+  black-box-test:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Taure/erlang-ci@v1
+        with:
+          otp-version: '28'
+      - run: rebar3 release
+      - run: ./scripts/black_box_tests.sh
+
+  deploy-staging:
+    needs: [ci, black-box-test]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: company/deploy-action@v1
+        with:
+          environment: staging
+```
+
+### Adding jobs in parallel with CI
+
+Jobs that don't depend on CI results can run in parallel:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+
+  # Runs alongside CI, not after it
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: company/security-scanner@v2
+
+  # Needs both to pass before deploying
+  deploy:
+    needs: [ci, security-scan]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: company/deploy-action@v1
+```
+
+### Company-internal reusable workflow wrapping erlang-ci
+
+For organizations that want to enforce additional steps across all repos, create an internal wrapper workflow:
+
+```yaml
+# company/.github/workflows/erlang-ci.yml
+name: Company Erlang CI
+
+on:
+  workflow_call:
+    inputs:
+      otp-version:
+        type: string
+        default: '28'
+      enable-ct:
+        type: boolean
+        default: false
+
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      otp-version: ${{ inputs.otp-version }}
+      enable-ct: ${{ inputs.enable-ct }}
+      enable-audit: true
+      enable-dependency-submission: true
+
+  compliance:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: company/license-checker@v1
+      - uses: company/sbom-attestation@v1
+
+  black-box:
+    needs: ci
+    runs-on: ubuntu-latest
+    services:
+      app:
+        image: ${{ needs.ci.outputs.image }}  # if you build a container
+    steps:
+      - uses: company/black-box-tests@v1
+```
+
+Individual repos then call the company wrapper with minimal config:
+
+```yaml
+jobs:
+  ci:
+    uses: company/.github/workflows/erlang-ci.yml@v1
+    with:
+      otp-version: '28'
+```
+
+### Using the composite action for full control
+
+When the reusable workflow is too opinionated, use the composite action directly and build your own pipeline:
+
+```yaml
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Taure/erlang-ci@v1
+        with:
+          otp-version: '28'
+      - run: rebar3 compile
+      - run: rebar3 fmt --check
+      - run: rebar3 xref
+      - run: rebar3 eunit
+      # Add whatever custom steps you need
+      - run: ./scripts/custom_checks.sh
+      - uses: company/notify-slack@v1
+        if: failure()
+```
+
+### Choosing the right approach
+
+| Approach | When to use |
+|----------|-------------|
+| **Reusable workflow only** | Standard Erlang library, no custom steps needed |
+| **Reusable workflow + extra jobs** | Need to add steps before/after the standard pipeline |
+| **Company wrapper workflow** | Enforce org-wide policies across all repos |
+| **Composite action only** | Need full control over job structure and step order |
 
 ## Inputs reference
 
@@ -275,6 +408,7 @@ The composite action handles:
 | `enable-coverage` | `false` | Coverage via covertool + Codecov upload |
 | `enable-sbom` | `false` | Generate CycloneDX SBOM via `rebar3 sbom` |
 | `enable-dependency-submission` | `false` | Submit deps to GitHub Dependency Graph |
+| `enable-summary` | `true` | Post audit summary comment on PRs |
 
 ### PostgreSQL
 
@@ -295,6 +429,28 @@ The composite action handles:
 | `ct-args` | — | Extra args for `rebar3 ct` |
 | `eunit-args` | — | Extra args for `rebar3 eunit` (e.g. `--module=foo_tests`) |
 | `rebar3-compile-args` | — | Extra args for `rebar3 compile` |
+
+## PR audit summary
+
+When `enable-audit` and `enable-summary` are both enabled, a comment is posted on PRs with the security audit results.
+
+**Clean scan:**
+
+> ### 🛡️ Security Audit
+> No vulnerabilities found in 5 dependencies.
+
+**Vulnerabilities found:**
+
+> ### 🚨 Security Audit — 2 vulnerabilities found
+>
+> | Severity | Package | Version | Advisory | Fix |
+> |:---:|---|---|---|---|
+> | 🔴 Critical | **pgo** | `0.14.0` | GHSA-xxxx (CVE-2025-0001) | Upgrade to `0.15.0` |
+> | 🟡 Medium | **cowlib** | `2.12.0` | GHSA-yyyy | No fix available |
+
+Each vulnerability includes an expandable details section with the full description and vulnerable version range.
+
+The comment is updated on re-runs (never duplicated). Requires `pull-requests: write` permission on the caller's `ci` job.
 
 ## Templates
 
