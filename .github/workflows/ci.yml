@@ -108,6 +108,23 @@ on:
         required: false
         default: '5432'
 
+      # Kafka
+      kafka:
+        description: 'Enable Kafka service container'
+        type: boolean
+        required: false
+        default: false
+      kafka-version:
+        description: 'Kafka Docker image version (uses apache/kafka)'
+        type: string
+        required: false
+        default: '3.9'
+      kafka-port:
+        description: 'Kafka broker port'
+        type: string
+        required: false
+        default: '9092'
+
       # Summary
       enable-summary:
         description: 'Post a status summary comment on PRs'
@@ -253,7 +270,17 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+      - name: Start services
+        if: ${{ inputs.kafka }}
+        env:
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: EUnit
+        env:
+          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
@@ -300,7 +327,17 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+      - name: Start services
+        if: ${{ inputs.kafka }}
+        env:
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: EUnit
+        env:
+          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: rebar3 eunit ${{ inputs.eunit-args }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
@@ -327,7 +364,17 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+      - name: Start services
+        if: ${{ inputs.kafka }}
+        env:
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: Common Test
+        env:
+          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
@@ -374,7 +421,17 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+      - name: Start services
+        if: ${{ inputs.kafka }}
+        env:
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
       - name: Common Test
+        env:
+          KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+          KAFKA_PORT: ${{ inputs.kafka-port }}
         run: rebar3 ct ${{ inputs.ct-args }} ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }} ${{ inputs.enable-coverage && '--cover' || '' }}
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
