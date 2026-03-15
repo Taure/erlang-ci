@@ -225,7 +225,7 @@ jobs:
           echo "$output" >> "$GITHUB_OUTPUT"
           echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
           # Fail the job if audit found vulnerabilities
-          echo "$output" | grep -qi "no known vulnerabilities" || exit 1
+          echo "$output" | grep -qi "no vulnerabilities found" || exit 1
 
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
