@@ -157,7 +157,7 @@ generate_trivyignore() {
     echo "$output"
 }
 
-# When sourced, export functions only. When run directly, generate the file.
-if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+# When sourced, export functions only. When run directly or piped, generate the file.
+if [ -z "${BASH_SOURCE[0]:-}" ] || [ "${BASH_SOURCE[0]}" = "$0" ]; then
     generate_trivyignore
 fi
