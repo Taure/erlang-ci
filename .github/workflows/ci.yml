@@ -390,8 +390,6 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-dependency-submission }}
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/rebar3-dependency-submission@v1
