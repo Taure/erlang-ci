@@ -209,7 +209,7 @@ jobs:
     if: ${{ inputs.enable-audit }}
     runs-on: ubuntu-24.04
     outputs:
-      report: ${{ steps.audit.outputs.report }}
+      json: ${{ steps.audit.outputs.json }}
     steps:
       - uses: actions/checkout@v4
       - uses: Taure/erlang-ci@v1
@@ -220,12 +220,13 @@ jobs:
       - name: Run audit
         id: audit
         run: |
-          output=$(rebar3 audit 2>&1) || true
-          echo "report<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
-          echo "$output" >> "$GITHUB_OUTPUT"
+          json=$(rebar3 audit --format json 2>/dev/null) || true
+          echo "json<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
+          echo "$json" >> "$GITHUB_OUTPUT"
           echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
-          # Fail the job if audit found vulnerabilities
-          echo "$output" | grep -qi "no vulnerabilities found" || exit 1
+          # Fail if vulnerabilities were found
+          count=$(echo "$json" | jq '.vulnerabilities | length')
+          [ "$count" -eq 0 ] || exit 1
 
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
@@ -421,79 +422,71 @@ jobs:
   summary:
     name: Summary
     if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' }}
-    needs:
-      - compile
-      - fmt
-      - xref
-      - dialyzer
-      - eunit
-      - eunit-postgres
-      - ct
-      - ct-postgres
-      - audit
-      - sbom
-      - dependency-submission
-      - ex-doc
+    needs: [audit]
     runs-on: ubuntu-24.04
     steps:
       - name: Post summary comment
         uses: actions/github-script@v7
         with:
           script: |
-            const results = {
-              'Compile': '${{ needs.compile.result }}',
-              'Format': '${{ needs.fmt.result }}',
-              'Xref': '${{ needs.xref.result }}',
-              'Dialyzer': '${{ needs.dialyzer.result }}',
-              'EUnit': '${{ needs.eunit.result }}',
-              'EUnit (PostgreSQL)': '${{ needs.eunit-postgres.result }}',
-              'Common Test': '${{ needs.ct.result }}',
-              'Common Test (PostgreSQL)': '${{ needs.ct-postgres.result }}',
-              'Audit': '${{ needs.audit.result }}',
-              'SBOM': '${{ needs.sbom.result }}',
-              'Dependency Submission': '${{ needs.dependency-submission.result }}',
-              'Documentation': '${{ needs.ex-doc.result }}',
-            };
+            const auditJson = `${{ needs.audit.outputs.json }}`.trim();
+            if (!auditJson || '${{ needs.audit.result }}' === 'skipped') return;
 
-            const icon = {
-              success: ':white_check_mark:',
-              failure: ':x:',
-              cancelled: ':no_entry_sign:',
-            };
+            let audit;
+            try { audit = JSON.parse(auditJson); } catch { return; }
 
-            const rows = Object.entries(results)
-              .filter(([_, result]) => result !== 'skipped' && result !== '')
-              .map(([name, result]) => `| ${icon[result] || ':grey_question:'} | ${name} | ${result} |`);
+            const vulns = audit.vulnerabilities || [];
+            const scanned = audit.dependencies_scanned || 0;
+            const lines = ['<!-- erlang-ci-summary -->'];
 
-            if (rows.length === 0) return;
+            if (vulns.length === 0) {
+              lines.push(`### :shield: Security Audit`);
+              lines.push(`No vulnerabilities found in ${scanned} dependencies.`);
+            } else {
+              lines.push(`### :rotating_light: Security Audit — ${vulns.length} ${vulns.length === 1 ? 'vulnerability' : 'vulnerabilities'} found`);
+              lines.push('');
 
-            const allPassed = Object.entries(results)
-              .filter(([_, r]) => r !== 'skipped' && r !== '')
-              .every(([_, r]) => r === 'success');
+              const severity_icon = {
+                critical: ':red_circle:',
+                high: ':orange_circle:',
+                medium: ':yellow_circle:',
+                low: ':green_circle:',
+                unknown: ':white_circle:',
+              };
 
-            const header = allPassed
-              ? ':white_check_mark: **All checks passed**'
-              : ':x: **Some checks failed**';
+              lines.push('| Severity | Package | Version | Advisory | Fix |');
+              lines.push('|:---:|---|---|---|---|');
 
-            const sections = [];
+              for (const v of vulns) {
+                const sev = (v.severity || 'unknown').toLowerCase();
+                const icon = severity_icon[sev] || ':white_circle:';
+                const label = sev.charAt(0).toUpperCase() + sev.slice(1);
+                const advisory = v.cve_id
+                  ? `[${v.ghsa_id}](${v.url}) (${v.cve_id})`
+                  : `[${v.ghsa_id}](${v.url})`;
+                const fix = v.patched_version
+                  ? `Upgrade to \`${v.patched_version}\``
+                  : 'No fix available';
+                lines.push(`| ${icon} ${label} | **${v.package}** | \`${v.current_version}\` | ${advisory} | ${fix} |`);
+              }
 
-            const auditReport = `${{ needs.audit.outputs.report }}`.trim();
-            if (auditReport) {
-              sections.push('### Audit');
-              sections.push('```');
-              sections.push(auditReport);
-              sections.push('```');
+              lines.push('');
+
+              for (const v of vulns) {
+                lines.push(`<details><summary>${v.ghsa_id} — ${v.package}</summary>`);
+                lines.push('');
+                lines.push(`> ${v.summary}`);
+                lines.push(`>`);
+                lines.push(`> **Vulnerable range:** \`${v.vulnerable_range}\``);
+                lines.push('');
+                lines.push('</details>');
+                lines.push('');
+              }
+
+              lines.push(`${scanned} dependencies scanned.`);
             }
 
-            const body = [
-              '<!-- erlang-ci-summary -->',
-              header,
-              '',
-              '| | Check | Result |',
-              '|---|---|---|',
-              ...rows,
-              ...(sections.length > 0 ? ['', ...sections] : []),
-            ].join('\n');
+            const body = lines.join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
