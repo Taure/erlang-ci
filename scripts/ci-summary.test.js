@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderSummary } = require('./ci-summary');
+const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderSummary } = require('./ci-summary');
 
 describe('renderAuditSection', () => {
   it('returns null for empty input', () => {
@@ -186,6 +186,45 @@ describe('renderIgnoredSection', () => {
   });
 });
 
+describe('renderCoverageSection', () => {
+  it('returns null for empty input', () => {
+    assert.equal(renderCoverageSection(''), null);
+    assert.equal(renderCoverageSection(null), null);
+    assert.equal(renderCoverageSection('   '), null);
+  });
+
+  it('renders high coverage with green badge', () => {
+    const json = JSON.stringify({ line_rate: 92.5, lines_covered: 1285, lines_valid: 1390 });
+    const lines = renderCoverageSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':green_circle:'));
+    assert.ok(text.includes('92.5%'));
+    assert.ok(text.includes('1285 of 1390 lines'));
+  });
+
+  it('renders medium coverage with yellow badge', () => {
+    const json = JSON.stringify({ line_rate: 75.0, lines_covered: 750, lines_valid: 1000 });
+    const lines = renderCoverageSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':yellow_circle:'));
+    assert.ok(text.includes('75%'));
+  });
+
+  it('renders low coverage with orange badge', () => {
+    const json = JSON.stringify({ line_rate: 55.0, lines_covered: 55, lines_valid: 100 });
+    const lines = renderCoverageSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':orange_circle:'));
+  });
+
+  it('renders very low coverage with red badge', () => {
+    const json = JSON.stringify({ line_rate: 30.0, lines_covered: 30, lines_valid: 100 });
+    const lines = renderCoverageSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':red_circle:'));
+  });
+});
+
 describe('renderSummary', () => {
   it('returns null when no data', () => {
     assert.equal(renderSummary({}), null);
@@ -251,6 +290,24 @@ describe('renderSummary', () => {
     const result = renderSummary({ ignored });
     assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
     assert.ok(result.includes('1 OTP CVE auto-ignored'));
+  });
+
+  it('renders coverage section', () => {
+    const coverage = JSON.stringify({ line_rate: 85.3, lines_covered: 1285, lines_valid: 1506 });
+    const result = renderSummary({ coverage });
+    assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
+    assert.ok(result.includes('85.3%'));
+    assert.ok(result.includes(':yellow_circle:'));
+  });
+
+  it('renders coverage first then audit', () => {
+    const coverage = JSON.stringify({ line_rate: 95.0, lines_covered: 950, lines_valid: 1000 });
+    const audit = JSON.stringify({ vulnerabilities: [], dependencies_scanned: 5 });
+    const result = renderSummary({ audit, coverage });
+    const coveragePos = result.indexOf('95%');
+    const auditPos = result.indexOf(':shield:');
+    assert.ok(coveragePos < auditPos, 'coverage should appear before audit');
+    assert.ok(result.includes('---'));
   });
 });
 

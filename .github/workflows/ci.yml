@@ -330,12 +330,12 @@ jobs:
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
         run: rebar3 covertool generate
-      - name: Upload coverage
+      - name: Upload coverage artifact
         if: ${{ inputs.enable-coverage }}
-        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          files: _build/test/covertool/*.covertool.xml
-          flags: eunit
+          name: coverage-eunit-otp${{ matrix.otp }}
+          path: _build/test/covertool/*.covertool.xml
 
   ct:
     name: Common Test${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
@@ -379,12 +379,50 @@ jobs:
       - name: Generate coverage
         if: ${{ inputs.enable-coverage }}
         run: rebar3 covertool generate
-      - name: Upload coverage
+      - name: Upload coverage artifact
         if: ${{ inputs.enable-coverage }}
-        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          files: _build/test/covertool/*.covertool.xml
-          flags: ct
+          name: coverage-ct-otp${{ matrix.otp }}
+          path: _build/test/covertool/*.covertool.xml
+
+  coverage:
+    name: Coverage
+    needs: [eunit, ct]
+    if: ${{ always() && inputs.enable-coverage }}
+    runs-on: ubuntu-24.04
+    outputs:
+      json: ${{ steps.extract.outputs.json }}
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+          path: coverage
+      - name: Extract coverage summary
+        id: extract
+        run: |
+          total_covered=0
+          total_valid=0
+          for f in coverage/*.covertool.xml; do
+            [ -f "$f" ] || continue
+            covered=$(grep -o 'lines-covered="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            valid=$(grep -o 'lines-valid="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            total_covered=$((total_covered + ${covered:-0}))
+            total_valid=$((total_valid + ${valid:-0}))
+          done
+
+          if [ "$total_valid" -gt 0 ]; then
+            pct=$(awk "BEGIN {printf \"%.1f\", ($total_covered/$total_valid)*100}")
+          else
+            pct="0.0"
+          fi
+
+          echo "json<<COV_EOF" >> "$GITHUB_OUTPUT"
+          echo "{\"line_rate\":$pct,\"lines_covered\":$total_covered,\"lines_valid\":$total_valid}" >> "$GITHUB_OUTPUT"
+          echo "COV_EOF" >> "$GITHUB_OUTPUT"
+          echo "Coverage: $pct% ($total_covered/$total_valid lines)"
 
   sbom:
     name: SBOM
@@ -503,7 +541,7 @@ jobs:
   summary:
     name: Summary
     if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' }}
-    needs: [audit, sbom]
+    needs: [audit, sbom, coverage]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -518,6 +556,7 @@ jobs:
           AUDIT_JSON: ${{ needs.audit.outputs.json }}
           SBOM_JSON: ${{ needs.sbom.outputs.scan-json }}
           IGNORED_JSON: ${{ needs.sbom.outputs.ignored-json }}
+          COVERAGE_JSON: ${{ needs.coverage.outputs.json }}
         with:
           script: |
             const { renderSummary } = require('./scripts/ci-summary');
@@ -525,6 +564,7 @@ jobs:
               audit: process.env.AUDIT_JSON,
               sbom: process.env.SBOM_JSON,
               ignored: process.env.IGNORED_JSON,
+              coverage: process.env.COVERAGE_JSON,
             });
             if (!body) return;
 

@@ -137,20 +137,55 @@ function renderIgnoredSection(ignoredJson) {
   return lines;
 }
 
-function renderSummary({ audit, sbom, ignored } = {}) {
+function coverageBadge(pct) {
+  if (pct >= 90) return ':green_circle:';
+  if (pct >= 70) return ':yellow_circle:';
+  if (pct >= 50) return ':orange_circle:';
+  return ':red_circle:';
+}
+
+function renderCoverageSection(coverageJson) {
+  if (!coverageJson || !coverageJson.trim()) return null;
+
+  let cov;
+  try { cov = JSON.parse(coverageJson); } catch { return null; }
+
+  const pct = cov.line_rate;
+  if (pct === undefined || pct === null) return null;
+
+  const badge = coverageBadge(pct);
+  const covered = cov.lines_covered || 0;
+  const valid = cov.lines_valid || 0;
+
+  return [`### ${badge} Code Coverage — ${pct}%`, `${covered} of ${valid} lines covered.`];
+}
+
+function renderSummary({ audit, sbom, ignored, coverage } = {}) {
   const auditLines = renderAuditSection(audit);
   const sbomLines = renderSbomSection(sbom);
   const ignoredLines = renderIgnoredSection(ignored);
+  const coverageLines = renderCoverageSection(coverage);
 
-  if (!auditLines && !sbomLines && !ignoredLines) return null;
+  if (!auditLines && !sbomLines && !ignoredLines && !coverageLines) return null;
+
+  const sections = [];
+  if (coverageLines) sections.push(coverageLines);
+  if (auditLines) sections.push(auditLines);
+  if (sbomLines) {
+    const combined = [...sbomLines];
+    if (ignoredLines) {
+      combined.push('');
+      combined.push(...ignoredLines);
+    }
+    sections.push(combined);
+  } else if (ignoredLines) {
+    sections.push(ignoredLines);
+  }
 
   const lines = ['<!-- erlang-ci-summary -->'];
-  if (auditLines) lines.push(...auditLines);
-  if (auditLines && (sbomLines || ignoredLines)) lines.push('', '---', '');
-  if (sbomLines) lines.push(...sbomLines);
-  if (ignoredLines) {
-    lines.push('');
-    lines.push(...ignoredLines);
+  for (let i = 0; i < sections.length; i++) {
+    if (i > 0) lines.push('', '---', '');
+    lines.push(...sections[i]);
   }
 
   return lines.join('\n');
@@ -161,4 +196,4 @@ function renderAuditSummary(auditJson) {
   return renderSummary({ audit: auditJson });
 }
 
-module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderSummary };
+module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderSummary };
