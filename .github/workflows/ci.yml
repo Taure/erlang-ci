@@ -403,15 +403,18 @@ jobs:
       - name: Extract coverage summary
         id: extract
         run: |
+          echo "Coverage artifacts:"
+          find coverage -name '*.covertool.xml' -ls 2>/dev/null || echo "No .covertool.xml files found"
+
           total_covered=0
           total_valid=0
-          for f in coverage/*.covertool.xml; do
-            [ -f "$f" ] || continue
+          while IFS= read -r f; do
             covered=$(grep -o 'lines-covered="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
             valid=$(grep -o 'lines-valid="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            echo "  $f: covered=$covered valid=$valid"
             total_covered=$((total_covered + ${covered:-0}))
             total_valid=$((total_valid + ${valid:-0}))
-          done
+          done < <(find coverage -name '*.covertool.xml' 2>/dev/null)
 
           if [ "$total_valid" -gt 0 ]; then
             pct=$(awk "BEGIN {printf \"%.1f\", ($total_covered/$total_valid)*100}")
