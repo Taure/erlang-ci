@@ -20,9 +20,9 @@ inputs:
     required: false
     default: ''
   version-type:
-    description: 'Version match type (strict or loose)'
+    description: 'Version match type (strict or loose). Defaults to strict when version-file is set.'
     required: false
-    default: 'loose'
+    default: ''
   cache-key-prefix:
     description: 'Custom cache key prefix'
     required: false
@@ -48,6 +48,7 @@ runs:
       env:
         INPUT_VERSION_FILE: ${{ inputs.version-file }}
         INPUT_OTP_VERSION: ${{ inputs.otp-version }}
+        INPUT_VERSION_TYPE: ${{ inputs.version-type }}
       run: |
         if [ -n "$INPUT_VERSION_FILE" ]; then
           echo "file=$INPUT_VERSION_FILE" >> "$GITHUB_OUTPUT"
@@ -57,6 +58,15 @@ runs:
           echo "file=" >> "$GITHUB_OUTPUT"
         fi
 
+        # Default to strict when using version-file, loose otherwise
+        if [ -n "$INPUT_VERSION_TYPE" ]; then
+          echo "version-type=$INPUT_VERSION_TYPE" >> "$GITHUB_OUTPUT"
+        elif [ -n "$INPUT_VERSION_FILE" ] || { [ -z "$INPUT_OTP_VERSION" ] && [ -f .tool-versions ]; }; then
+          echo "version-type=strict" >> "$GITHUB_OUTPUT"
+        else
+          echo "version-type=loose" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Setup Erlang/OTP & rebar3
       id: setup-beam
       uses: erlef/setup-beam@0a75ccf1c18916f948584bdc83392d72e26f58f7 # v1
@@ -64,7 +74,7 @@ runs:
         otp-version: ${{ inputs.otp-version }}
         rebar3-version: ${{ inputs.rebar3-version }}
         version-file: ${{ steps.detect-versions.outputs.file }}
-        version-type: ${{ inputs.version-type }}
+        version-type: ${{ steps.detect-versions.outputs.version-type }}
 
     - name: Restore rebar3 cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4

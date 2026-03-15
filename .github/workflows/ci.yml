@@ -18,6 +18,11 @@ on:
         type: string
         required: false
         default: ''
+      version-type:
+        description: 'Version match type (strict or loose). Defaults to strict when version-file is set.'
+        type: string
+        required: false
+        default: ''
       otp-matrix:
         description: 'JSON array of OTP versions for matrix testing (e.g. ''["27","28"]''). Tests run on all, dialyzer on latest only.'
         type: string
@@ -178,6 +183,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - name: Compile
         env:
           COMPILE_ARGS: ${{ inputs.rebar3-compile-args }}
@@ -199,6 +205,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - run: rebar3 fmt --check
 
   xref:
@@ -215,6 +222,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - run: rebar3 xref
 
   dialyzer:
@@ -231,6 +239,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - name: Restore PLT cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -256,6 +265,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - name: Run audit
         id: audit
         env:
@@ -392,6 +402,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - name: Generate SBOM
         run: rebar3 sbom --output bom.xml --force
       - name: Scan SBOM for vulnerabilities
@@ -448,6 +459,7 @@ jobs:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
       - run: rebar3 ex_doc
 
   summary:
