@@ -67,7 +67,7 @@ describe('renderSbomSection', () => {
   });
 
   it('renders clean scan', () => {
-    const json = JSON.stringify({ matches: [] });
+    const json = JSON.stringify({ vulnerabilities: [] });
     const lines = renderSbomSection(json);
     assert.ok(Array.isArray(lines));
     const text = lines.join('\n');
@@ -77,13 +77,12 @@ describe('renderSbomSection', () => {
 
   it('renders single vulnerability', () => {
     const json = JSON.stringify({
-      matches: [{
+      vulnerabilities: [{
         id: 'CVE-2025-9999',
         severity: 'Critical',
         package: 'pgo',
         version: '0.14.0',
-        fix_versions: ['0.15.0'],
-        fix_state: 'fixed',
+        fixed_version: '0.15.0',
         url: 'https://nvd.nist.gov/vuln/detail/CVE-2025-9999'
       }]
     });
@@ -99,13 +98,12 @@ describe('renderSbomSection', () => {
 
   it('renders vulnerability with no fix', () => {
     const json = JSON.stringify({
-      matches: [{
+      vulnerabilities: [{
         id: 'CVE-2025-0001',
         severity: 'High',
         package: 'cowlib',
         version: '2.12.0',
-        fix_versions: [],
-        fix_state: 'not-fixed',
+        fixed_version: '',
         url: ''
       }]
     });
@@ -116,12 +114,12 @@ describe('renderSbomSection', () => {
     assert.ok(!text.includes('[CVE-2025-0001](')); // no link when url is empty
   });
 
-  it('deduplicates matches by id + package', () => {
+  it('deduplicates by id + package', () => {
     const json = JSON.stringify({
-      matches: [
-        { id: 'CVE-2025-1111', severity: 'High', package: 'cowboy', version: '2.10.0', fix_versions: ['2.12.0'], fix_state: 'fixed', url: 'https://example.com/1' },
-        { id: 'CVE-2025-1111', severity: 'High', package: 'cowboy', version: '2.10.0', fix_versions: ['2.12.0'], fix_state: 'fixed', url: 'https://example.com/2' },
-        { id: 'CVE-2025-2222', severity: 'Medium', package: 'ranch', version: '1.8.0', fix_versions: [], fix_state: 'not-fixed', url: '' },
+      vulnerabilities: [
+        { id: 'CVE-2025-1111', severity: 'High', package: 'cowboy', version: '2.10.0', fixed_version: '2.12.0', url: 'https://example.com/1' },
+        { id: 'CVE-2025-1111', severity: 'High', package: 'cowboy', version: '2.10.0', fixed_version: '2.12.0', url: 'https://example.com/2' },
+        { id: 'CVE-2025-2222', severity: 'Medium', package: 'ranch', version: '1.8.0', fixed_version: '', url: '' },
       ]
     });
     const lines = renderSbomSection(json);
@@ -134,10 +132,10 @@ describe('renderSbomSection', () => {
 
   it('renders multiple severities', () => {
     const json = JSON.stringify({
-      matches: [
-        { id: 'CVE-1', severity: 'Critical', package: 'a', version: '1.0', fix_versions: [], fix_state: 'unknown', url: '' },
-        { id: 'CVE-2', severity: 'Low', package: 'b', version: '2.0', fix_versions: ['2.1'], fix_state: 'fixed', url: '' },
-        { id: 'CVE-3', severity: 'Negligible', package: 'c', version: '3.0', fix_versions: [], fix_state: 'unknown', url: '' },
+      vulnerabilities: [
+        { id: 'CVE-1', severity: 'Critical', package: 'a', version: '1.0', fixed_version: '', url: '' },
+        { id: 'CVE-2', severity: 'Low', package: 'b', version: '2.0', fixed_version: '2.1', url: '' },
+        { id: 'CVE-3', severity: 'Negligible', package: 'c', version: '3.0', fixed_version: '', url: '' },
       ]
     });
     const lines = renderSbomSection(json);
@@ -165,7 +163,7 @@ describe('renderSummary', () => {
   });
 
   it('renders sbom only', () => {
-    const sbom = JSON.stringify({ matches: [] });
+    const sbom = JSON.stringify({ vulnerabilities: [] });
     const result = renderSummary({ sbom });
     assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
     assert.ok(result.includes(':package:'));
@@ -175,7 +173,7 @@ describe('renderSummary', () => {
 
   it('renders both with separator', () => {
     const audit = JSON.stringify({ vulnerabilities: [], dependencies_scanned: 5 });
-    const sbom = JSON.stringify({ matches: [] });
+    const sbom = JSON.stringify({ vulnerabilities: [] });
     const result = renderSummary({ audit, sbom });
     assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
     assert.ok(result.includes(':shield:'));
@@ -185,14 +183,14 @@ describe('renderSummary', () => {
 
   it('includes marker exactly once', () => {
     const audit = JSON.stringify({ vulnerabilities: [], dependencies_scanned: 1 });
-    const sbom = JSON.stringify({ matches: [] });
+    const sbom = JSON.stringify({ vulnerabilities: [] });
     const result = renderSummary({ audit, sbom });
     const markerCount = (result.match(/<!-- erlang-ci-summary -->/g) || []).length;
     assert.equal(markerCount, 1);
   });
 
   it('skips section with invalid JSON', () => {
-    const sbom = JSON.stringify({ matches: [] });
+    const sbom = JSON.stringify({ vulnerabilities: [] });
     const result = renderSummary({ audit: 'broken', sbom });
     assert.ok(result.includes(':package:'));
     assert.ok(!result.includes(':shield:'));

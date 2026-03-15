@@ -65,26 +65,26 @@ function renderAuditSection(auditJson) {
   return lines;
 }
 
-function renderSbomSection(grypeJson) {
-  if (!grypeJson || !grypeJson.trim()) return null;
+function renderSbomSection(scanJson) {
+  if (!scanJson || !scanJson.trim()) return null;
 
-  let grype;
-  try { grype = JSON.parse(grypeJson); } catch { return null; }
+  let scan;
+  try { scan = JSON.parse(scanJson); } catch { return null; }
 
-  const matches = grype.matches || [];
+  const vulns = scan.vulnerabilities || [];
 
-  if (matches.length === 0) {
+  if (vulns.length === 0) {
     return ['### :package: SBOM Scan', 'No vulnerabilities found.'];
   }
 
   // Deduplicate by vulnerability id + package name
   const seen = new Set();
   const unique = [];
-  for (const m of matches) {
-    const key = `${m.id}:${m.package}`;
+  for (const v of vulns) {
+    const key = `${v.id}:${v.package}`;
     if (!seen.has(key)) {
       seen.add(key);
-      unique.push(m);
+      unique.push(v);
     }
   }
 
@@ -94,12 +94,12 @@ function renderSbomSection(grypeJson) {
   lines.push('| Severity | Package | Version | Vulnerability | Fix |');
   lines.push('|:---:|---|---|---|---|');
 
-  for (const m of unique) {
-    const fix = m.fix_state === 'fixed' && m.fix_versions && m.fix_versions.length > 0
-      ? `Upgrade to \`${m.fix_versions[0]}\``
+  for (const v of unique) {
+    const fix = v.fixed_version
+      ? `Upgrade to \`${v.fixed_version}\``
       : 'No fix available';
-    const vuln = m.url ? `[${m.id}](${m.url})` : m.id;
-    lines.push(`| ${severityLabel(m.severity)} | **${m.package}** | \`${m.version}\` | ${vuln} | ${fix} |`);
+    const vuln = v.url ? `[${v.id}](${v.url})` : v.id;
+    lines.push(`| ${severityLabel(v.severity)} | **${v.package}** | \`${v.version}\` | ${vuln} | ${fix} |`);
   }
 
   return lines;

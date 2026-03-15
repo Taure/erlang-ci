@@ -392,7 +392,7 @@ jobs:
     if: ${{ inputs.enable-sbom }}
     runs-on: ubuntu-24.04
     outputs:
-      grype-json: ${{ steps.grype-extract.outputs.json }}
+      scan-json: ${{ steps.scan-extract.outputs.json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -407,23 +407,25 @@ jobs:
         run: rebar3 sbom --output bom.xml --force
       - name: Scan SBOM for vulnerabilities
         if: ${{ inputs.enable-sbom-scan }}
-        id: grype
+        id: trivy
         continue-on-error: true
-        uses: anchore/scan-action@7037fa011853d5a11690026fb85feee79f4c946c # v7
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # master
         with:
-          sbom: bom.xml
-          fail-build: true
-          severity-cutoff: high
-          output-format: json
-          output-file: grype-results.json
+          scan-type: sbom
+          scan-ref: bom.xml
+          format: json
+          output: trivy-results.json
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          trivyignores: .trivyignore
       - name: Extract scan results
         if: ${{ inputs.enable-sbom-scan }}
-        id: grype-extract
+        id: scan-extract
         run: |
-          if [ ! -f grype-results.json ]; then exit 0; fi
-          echo "json<<GRYPE_EOF" >> "$GITHUB_OUTPUT"
-          jq -c '{matches: [.matches[]? | {id: .vulnerability.id, severity: .vulnerability.severity, package: .artifact.name, version: .artifact.version, fix_versions: (.vulnerability.fix.versions // []), fix_state: (.vulnerability.fix.state // "unknown"), url: (.vulnerability.dataSource // "")}]}' grype-results.json >> "$GITHUB_OUTPUT"
-          echo "GRYPE_EOF" >> "$GITHUB_OUTPUT"
+          if [ ! -f trivy-results.json ]; then exit 0; fi
+          echo "json<<SCAN_EOF" >> "$GITHUB_OUTPUT"
+          jq -c '{vulnerabilities: [.Results[]?.Vulnerabilities[]? | {id: .VulnerabilityID, severity: .Severity, package: .PkgName, version: .InstalledVersion, fixed_version: (.FixedVersion // ""), url: (.PrimaryURL // "")}]}' trivy-results.json >> "$GITHUB_OUTPUT"
+          echo "SCAN_EOF" >> "$GITHUB_OUTPUT"
       - name: Upload SBOM
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -431,7 +433,7 @@ jobs:
           name: sbom
           path: bom.xml
       - name: Fail if vulnerabilities found
-        if: ${{ steps.grype.outcome == 'failure' }}
+        if: ${{ steps.trivy.outcome == 'failure' }}
         run: exit 1
 
   dependency-submission:
@@ -478,7 +480,7 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           AUDIT_JSON: ${{ needs.audit.outputs.json }}
-          SBOM_JSON: ${{ needs.sbom.outputs.grype-json }}
+          SBOM_JSON: ${{ needs.sbom.outputs.scan-json }}
         with:
           script: |
             const { renderSummary } = require('./scripts/ci-summary');
