@@ -393,6 +393,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       scan-json: ${{ steps.scan-extract.outputs.json }}
+      ignored-json: ${{ steps.trivyignore.outputs.json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -405,6 +406,23 @@ jobs:
           version-type: ${{ inputs.version-type }}
       - name: Generate SBOM
         run: rebar3 sbom --output bom.xml --force
+      - name: Generate .trivyignore from OTP advisories
+        if: ${{ inputs.enable-sbom-scan }}
+        id: trivyignore
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/generate-trivyignore.sh | bash
+          if [ -f .trivyignore ]; then
+            # Extract ignored CVEs as JSON for the summary comment
+            ignored=$(grep -v '^#' .trivyignore | grep -v '^\s*$' | \
+              sed 's/ # /\t/' | \
+              jq -Rc 'split("\t") | {id: .[0], reason: .[1]}' | \
+              jq -sc '{ignored: .}')
+            echo "json<<IGNORE_EOF" >> "$GITHUB_OUTPUT"
+            echo "$ignored" >> "$GITHUB_OUTPUT"
+            echo "IGNORE_EOF" >> "$GITHUB_OUTPUT"
+          fi
       - name: Scan SBOM for vulnerabilities
         if: ${{ inputs.enable-sbom-scan }}
         id: trivy
@@ -481,12 +499,14 @@ jobs:
         env:
           AUDIT_JSON: ${{ needs.audit.outputs.json }}
           SBOM_JSON: ${{ needs.sbom.outputs.scan-json }}
+          IGNORED_JSON: ${{ needs.sbom.outputs.ignored-json }}
         with:
           script: |
             const { renderSummary } = require('./scripts/ci-summary');
             const body = renderSummary({
               audit: process.env.AUDIT_JSON,
               sbom: process.env.SBOM_JSON,
+              ignored: process.env.IGNORED_JSON,
             });
             if (!body) return;
 

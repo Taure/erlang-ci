@@ -105,16 +105,53 @@ function renderSbomSection(scanJson) {
   return lines;
 }
 
-function renderSummary({ audit, sbom } = {}) {
+function renderIgnoredSection(ignoredJson) {
+  if (!ignoredJson || !ignoredJson.trim()) return null;
+
+  let data;
+  try { data = JSON.parse(ignoredJson); } catch { return null; }
+
+  const ignored = data.ignored || [];
+  if (ignored.length === 0) return null;
+
+  const lines = [];
+  lines.push('<details><summary>:information_source: ' +
+    `${ignored.length} OTP ${ignored.length === 1 ? 'CVE' : 'CVEs'} auto-ignored ` +
+    '(already fixed in running version)</summary>');
+  lines.push('');
+  lines.push('These CVEs are patched in the installed OTP version but NVD data');
+  lines.push('has not been updated to reflect this. They are excluded from the');
+  lines.push('scan via an auto-generated `.trivyignore`.');
+  lines.push('');
+  lines.push('| CVE | Details |');
+  lines.push('|---|---|');
+
+  for (const entry of ignored) {
+    const cveLink = `[${entry.id}](https://nvd.nist.gov/vuln/detail/${entry.id})`;
+    lines.push(`| ${cveLink} | ${entry.reason || ''} |`);
+  }
+
+  lines.push('');
+  lines.push('</details>');
+
+  return lines;
+}
+
+function renderSummary({ audit, sbom, ignored } = {}) {
   const auditLines = renderAuditSection(audit);
   const sbomLines = renderSbomSection(sbom);
+  const ignoredLines = renderIgnoredSection(ignored);
 
-  if (!auditLines && !sbomLines) return null;
+  if (!auditLines && !sbomLines && !ignoredLines) return null;
 
   const lines = ['<!-- erlang-ci-summary -->'];
   if (auditLines) lines.push(...auditLines);
-  if (auditLines && sbomLines) lines.push('', '---', '');
+  if (auditLines && (sbomLines || ignoredLines)) lines.push('', '---', '');
   if (sbomLines) lines.push(...sbomLines);
+  if (ignoredLines) {
+    lines.push('');
+    lines.push(...ignoredLines);
+  }
 
   return lines.join('\n');
 }
@@ -124,4 +161,4 @@ function renderAuditSummary(auditJson) {
   return renderSummary({ audit: auditJson });
 }
 
-module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderSummary };
+module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderSummary };

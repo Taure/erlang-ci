@@ -23,6 +23,8 @@ jobs:
         run: bash scripts/start-services.test.sh
       - name: Run detect-versions tests
         run: bash scripts/detect-versions.test.sh
+      - name: Run generate-trivyignore tests
+        run: bash scripts/generate-trivyignore.test.sh
 
   lint:
     name: Lint Workflows
