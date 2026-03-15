@@ -405,7 +405,7 @@ jobs:
           path: _build/test/cover
       - name: Compile and generate coverage report
         run: |
-          rebar3 compile
+          rebar3 as test compile
           echo "Coverdata files:"
           ls -la _build/test/cover/*.coverdata 2>/dev/null || echo "No coverdata files found"
           rebar3 covertool generate
