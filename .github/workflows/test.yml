@@ -122,6 +122,11 @@ jobs:
         working-directory: test/fixtures
         run: rebar3 lint
 
+      # --- Hank (mirrors ci.yml hank job) ---
+      - name: Hank
+        working-directory: test/fixtures
+        run: rebar3 hank
+
       # --- Audit (mirrors ci.yml audit job command) ---
       - name: Audit
         working-directory: test/fixtures

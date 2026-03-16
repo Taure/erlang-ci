@@ -60,6 +60,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-hank:
+        description: 'Run rebar3 hank (requires rebar3_hank plugin)'
+        type: boolean
+        required: false
+        default: false
       enable-ex-doc:
         description: 'Run rebar3 ex_doc'
         type: boolean
@@ -290,6 +295,23 @@ jobs:
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
       - run: rebar3 lint
+
+  hank:
+    name: Hank
+    needs: compile
+    if: ${{ inputs.enable-hank }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: Taure/erlang-ci@v1
+        with:
+          otp-version: ${{ inputs.otp-version }}
+          rebar3-version: ${{ inputs.rebar3-version }}
+          version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
+      - run: rebar3 hank
 
   audit:
     name: Audit

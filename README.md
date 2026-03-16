@@ -38,6 +38,7 @@ After compile, all enabled steps run in parallel:
                     ├─ xref ────────────────────┤
                     ├─ dialyzer ────────────────┤
                     ├─ lint ────────────────────┤
+                    ├─ hank ────────────────────┤
                     ├─ audit ───────────────────┤
 compile ──────────► ├─ eunit ───────────────────┤
                     ├─ ct ──────────────────────┤
@@ -56,6 +57,7 @@ compile ──────────► ├─ eunit ────────�
 | Xref | **on** | `enable-xref` | — |
 | Dialyzer | **on** | `enable-dialyzer` | — |
 | Lint (`rebar3 lint`) | off | `enable-lint` | `rebar3_lint` plugin |
+| Hank (`rebar3 hank`) | off | `enable-hank` | `rebar3_hank` plugin |
 | EUnit | **on** | `enable-eunit` | — |
 | Common Test | off | `enable-ct` | — |
 | ExDoc | off | `enable-ex-doc` | `rebar3_ex_doc` plugin |
@@ -212,6 +214,7 @@ jobs:
       enable-ex-doc: true
       enable-audit: true
       enable-lint: true
+      enable-hank: true
       enable-coverage: true
       enable-sbom: true
       enable-sbom-scan: true
@@ -236,6 +239,7 @@ jobs:
     erlfmt,
     rebar3_ex_doc,
     rebar3_lint,
+    rebar3_hank,
     rebar3_audit,
     covertool,
     rebar3_sbom,
