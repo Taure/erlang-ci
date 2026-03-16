@@ -120,6 +120,11 @@ on:
         type: string
         required: false
         default: 'eunit'
+      mutate-diff:
+        description: 'Only mutate lines changed in PR (requires rebar3_mutate >= 0.4.0)'
+        type: boolean
+        required: false
+        default: false
       mutate-args:
         description: 'Extra args for rebar3 mutate'
         type: string
@@ -651,6 +656,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: Taure/erlang-ci@v1
         with:
@@ -672,6 +678,7 @@ jobs:
           MUTATE_MIN_SCORE: ${{ inputs.mutate-min-score }}
           MUTATE_ARGS: ${{ inputs.mutate-args }}
           MUTATE_FRAMEWORK: ${{ inputs.mutate-test-framework }}
+          DIFF_BASE: ${{ inputs.mutate-diff && github.base_ref && format('--diff origin/{0}', github.base_ref) || '' }}
         run: |
           set +e
           args="--format json --test-framework $MUTATE_FRAMEWORK"
@@ -683,6 +690,9 @@ jobs:
               *) score="${score}.0" ;;
             esac
             args="$args --min-score $score"
+          fi
+          if [ -n "$DIFF_BASE" ]; then
+            args="$args $DIFF_BASE"
           fi
           if [ -n "$MUTATE_ARGS" ]; then
             args="$args $MUTATE_ARGS"
