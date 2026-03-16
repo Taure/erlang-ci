@@ -231,28 +231,42 @@ jobs:
       - name: Check for uncommitted artifacts
         run: git diff --exit-code
 
-  fmt:
-    name: Format
-    needs: compile
-    if: ${{ inputs.enable-fmt }}
+  prepare-checks:
+    name: Prepare checks
     runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.result }}
+      has-checks: ${{ steps.matrix.outputs.has-checks }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - id: matrix
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
-          persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ inputs.otp-version }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-          version-file: ${{ inputs.version-file }}
-          version-type: ${{ inputs.version-type }}
-      - run: rebar3 fmt --check
+          script: |
+            const checks = [];
+            const inputs = ${{ toJSON(inputs) }};
+            const mapping = [
+              { name: 'Format',        command: 'fmt --check',  key: 'enable-fmt' },
+              { name: 'Xref',          command: 'xref',         key: 'enable-xref' },
+              { name: 'Lint',          command: 'lint',         key: 'enable-lint' },
+              { name: 'Hank',          command: 'hank',         key: 'enable-hank' },
+              { name: 'Sheldon',       command: 'spellcheck',   key: 'enable-sheldon' },
+              { name: 'Documentation', command: 'ex_doc',       key: 'enable-ex-doc' },
+            ];
+            for (const c of mapping) {
+              if (inputs[c.key]) checks.push(c);
+            }
+            core.setOutput('has-checks', checks.length > 0 ? 'true' : 'false');
+            return checks;
 
-  xref:
-    name: Xref
-    needs: compile
-    if: ${{ inputs.enable-xref }}
+  checks:
+    name: ${{ matrix.name }}
+    needs: [compile, prepare-checks]
+    if: ${{ needs.prepare-checks.outputs.has-checks == 'true' }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare-checks.outputs.matrix) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -263,7 +277,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
-      - run: rebar3 xref
+      - run: rebar3 ${{ matrix.command }}
 
   dialyzer:
     name: Dialyzer
@@ -288,57 +302,6 @@ jobs:
           restore-keys: |
             erlang-ci-plt-${{ runner.os }}-otp-${{ inputs.otp-version }}-
       - run: rebar3 dialyzer
-
-  lint:
-    name: Lint
-    needs: compile
-    if: ${{ inputs.enable-lint }}
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ inputs.otp-version }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-          version-file: ${{ inputs.version-file }}
-          version-type: ${{ inputs.version-type }}
-      - run: rebar3 lint
-
-  hank:
-    name: Hank
-    needs: compile
-    if: ${{ inputs.enable-hank }}
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ inputs.otp-version }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-          version-file: ${{ inputs.version-file }}
-          version-type: ${{ inputs.version-type }}
-      - run: rebar3 hank
-
-  sheldon:
-    name: Sheldon
-    needs: compile
-    if: ${{ inputs.enable-sheldon }}
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ inputs.otp-version }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-          version-file: ${{ inputs.version-file }}
-          version-type: ${{ inputs.version-type }}
-      - run: rebar3 spellcheck
 
   audit:
     name: Audit
@@ -620,23 +583,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: erlef/rebar3-dependency-submission@c1870bc7ba79a756cb0bc9749256685e612b737c # main
-
-  ex-doc:
-    name: Documentation
-    needs: compile
-    if: ${{ inputs.enable-ex-doc }}
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        with:
-          otp-version: ${{ inputs.otp-version }}
-          rebar3-version: ${{ inputs.rebar3-version }}
-          version-file: ${{ inputs.version-file }}
-          version-type: ${{ inputs.version-type }}
-      - run: rebar3 ex_doc
 
   mutate:
     name: Mutation Testing
