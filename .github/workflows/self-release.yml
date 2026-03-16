@@ -1,14 +1,11 @@
 name: Self Release
 
 on:
-  workflow_run:
-    workflows: [Test]
-    types: [completed]
+  push:
     branches: [main]
 
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
