@@ -39,6 +39,7 @@ After compile, all enabled steps run in parallel:
                     ├─ dialyzer ────────────────┤
                     ├─ lint ────────────────────┤
                     ├─ hank ────────────────────┤
+                    ├─ sheldon ─────────────────┤
                     ├─ audit ───────────────────┤
 compile ──────────► ├─ eunit ───────────────────┤
                     ├─ ct ──────────────────────┤
@@ -58,6 +59,7 @@ compile ──────────► ├─ eunit ────────�
 | Dialyzer | **on** | `enable-dialyzer` | — |
 | Lint (`rebar3 lint`) | off | `enable-lint` | `rebar3_lint` plugin |
 | Hank (`rebar3 hank`) | off | `enable-hank` | `rebar3_hank` plugin |
+| Sheldon (`rebar3 spellcheck`) | off | `enable-sheldon` | `rebar3_sheldon` plugin |
 | EUnit | **on** | `enable-eunit` | — |
 | Common Test | off | `enable-ct` | — |
 | ExDoc | off | `enable-ex-doc` | `rebar3_ex_doc` plugin |
@@ -215,6 +217,7 @@ jobs:
       enable-audit: true
       enable-lint: true
       enable-hank: true
+      enable-sheldon: true
       enable-coverage: true
       enable-sbom: true
       enable-sbom-scan: true
@@ -240,6 +243,7 @@ jobs:
     rebar3_ex_doc,
     rebar3_lint,
     rebar3_hank,
+    rebar3_sheldon,
     rebar3_audit,
     covertool,
     rebar3_sbom,

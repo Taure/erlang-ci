@@ -127,6 +127,11 @@ jobs:
         working-directory: test/fixtures
         run: rebar3 hank
 
+      # --- Sheldon (mirrors ci.yml sheldon job) ---
+      - name: Sheldon
+        working-directory: test/fixtures
+        run: rebar3 spellcheck
+
       # --- Audit (mirrors ci.yml audit job command) ---
       - name: Audit
         working-directory: test/fixtures
