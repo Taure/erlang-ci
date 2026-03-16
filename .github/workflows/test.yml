@@ -117,6 +117,21 @@ jobs:
         working-directory: test/fixtures
         run: rebar3 ct
 
+      # --- Lint (mirrors ci.yml lint job) ---
+      - name: Lint
+        working-directory: test/fixtures
+        run: rebar3 lint
+
+      # --- Hank (mirrors ci.yml hank job) ---
+      - name: Hank
+        working-directory: test/fixtures
+        run: rebar3 hank
+
+      # --- Sheldon (mirrors ci.yml sheldon job) ---
+      - name: Sheldon
+        working-directory: test/fixtures
+        run: rebar3 spellcheck
+
       # --- Audit (mirrors ci.yml audit job command) ---
       - name: Audit
         working-directory: test/fixtures
@@ -133,3 +148,25 @@ jobs:
       - name: Documentation
         working-directory: test/fixtures
         run: rebar3 ex_doc
+
+  ci:
+    name: ci
+    if: always()
+    needs: [unit-test, lint, security, integration, integration-version-file]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check results
+        run: |
+          results=(
+            "${{ needs.unit-test.result }}"
+            "${{ needs.lint.result }}"
+            "${{ needs.security.result }}"
+            "${{ needs.integration.result }}"
+            "${{ needs.integration-version-file.result }}"
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "One or more jobs failed: ${results[*]}"
+              exit 1
+            fi
+          done
