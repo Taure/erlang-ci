@@ -8,6 +8,11 @@ on:
         type: string
         required: false
         default: 'cliff.toml'
+      floating-major-tag:
+        description: 'Update floating major version tag (e.g. v1) to track latest release'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   release:
@@ -93,3 +98,13 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes "$CHANGELOG"
+
+      - name: Update floating major tag
+        if: steps.resolve.outputs.skip == 'false' && inputs.floating-major-tag
+        env:
+          TAG: ${{ steps.resolve.outputs.next }}
+        run: |
+          MAJOR=$(echo "$TAG" | grep -oP '^v\d+')
+          echo "Updating floating tag $MAJOR -> $TAG"
+          git tag -f "$MAJOR" "$TAG"
+          git push origin "$MAJOR" --force
