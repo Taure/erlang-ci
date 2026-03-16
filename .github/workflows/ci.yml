@@ -590,13 +590,8 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          fetch-depth: ${{ inputs.mutate-diff && '0' || '1' }}
+          fetch-depth: 0
           persist-credentials: false
-      - name: Fetch base branch
-        if: ${{ inputs.mutate-diff && github.base_ref }}
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: git fetch origin "$BASE_REF" --depth=1
       - uses: Taure/erlang-ci@v1
         with:
           otp-version: ${{ inputs.otp-version }}
