@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderSummary } = require('./ci-summary');
+const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderMutateSection, renderSummary } = require('./ci-summary');
 
 describe('renderAuditSection', () => {
   it('returns null for empty input', () => {
@@ -225,6 +225,70 @@ describe('renderCoverageSection', () => {
   });
 });
 
+describe('renderMutateSection', () => {
+  it('returns null for empty input', () => {
+    assert.equal(renderMutateSection(''), null);
+    assert.equal(renderMutateSection(null), null);
+    assert.equal(renderMutateSection(undefined), null);
+    assert.equal(renderMutateSection('   '), null);
+  });
+
+  it('returns null for invalid JSON', () => {
+    assert.equal(renderMutateSection('not json'), null);
+  });
+
+  it('renders high score with green badge', () => {
+    const json = JSON.stringify({ score: 92.5, total: 40, killed: 37, survived: 2, timed_out: 1 });
+    const lines = renderMutateSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':green_circle:'));
+    assert.ok(text.includes('92.5%'));
+    assert.ok(text.includes('40 mutants tested'));
+    assert.ok(text.includes('37 killed'));
+    assert.ok(text.includes('2 survived'));
+    assert.ok(text.includes('1 timed out'));
+  });
+
+  it('renders medium score with yellow badge', () => {
+    const json = JSON.stringify({ score: 65.0, total: 20, killed: 13, survived: 7, timed_out: 0 });
+    const lines = renderMutateSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':yellow_circle:'));
+    assert.ok(text.includes('65%'));
+  });
+
+  it('renders low score with orange badge', () => {
+    const json = JSON.stringify({ score: 45.0, total: 20, killed: 9, survived: 11, timed_out: 0 });
+    const lines = renderMutateSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':orange_circle:'));
+  });
+
+  it('renders very low score with red badge', () => {
+    const json = JSON.stringify({ score: 25.0, total: 20, killed: 5, survived: 15, timed_out: 0 });
+    const lines = renderMutateSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':red_circle:'));
+  });
+
+  it('omits survived and timed_out when zero', () => {
+    const json = JSON.stringify({ score: 100, total: 10, killed: 10, survived: 0, timed_out: 0 });
+    const lines = renderMutateSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes('10 killed'));
+    assert.ok(!text.includes('survived'));
+    assert.ok(!text.includes('timed out'));
+  });
+
+  it('formats integer scores without decimals', () => {
+    const json = JSON.stringify({ score: 80, total: 10, killed: 8, survived: 2, timed_out: 0 });
+    const lines = renderMutateSection(json);
+    const text = lines.join('\n');
+    assert.ok(text.includes('80%'));
+    assert.ok(!text.includes('80.0%'));
+  });
+});
+
 describe('renderSummary', () => {
   it('returns null when no data', () => {
     assert.equal(renderSummary({}), null);
@@ -298,6 +362,26 @@ describe('renderSummary', () => {
     assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
     assert.ok(result.includes('85.3%'));
     assert.ok(result.includes(':yellow_circle:'));
+  });
+
+  it('renders mutate section', () => {
+    const mutate = JSON.stringify({ score: 85.3, total: 20, killed: 17, survived: 3, timed_out: 0 });
+    const result = renderSummary({ mutate });
+    assert.ok(result.startsWith('<!-- erlang-ci-summary -->'));
+    assert.ok(result.includes('85.3%'));
+    assert.ok(result.includes('Mutation Testing'));
+  });
+
+  it('renders coverage then mutate then audit', () => {
+    const coverage = JSON.stringify({ line_rate: 95.0, lines_covered: 950, lines_valid: 1000 });
+    const mutate = JSON.stringify({ score: 80, total: 10, killed: 8, survived: 2, timed_out: 0 });
+    const audit = JSON.stringify({ vulnerabilities: [], dependencies_scanned: 5 });
+    const result = renderSummary({ audit, coverage, mutate });
+    const coveragePos = result.indexOf('95%');
+    const mutatePos = result.indexOf('Mutation Testing');
+    const auditPos = result.indexOf(':shield:');
+    assert.ok(coveragePos < mutatePos, 'coverage should appear before mutation');
+    assert.ok(mutatePos < auditPos, 'mutation should appear before audit');
   });
 
   it('renders coverage first then audit', () => {

@@ -90,6 +90,26 @@ on:
         type: boolean
         required: false
         default: false
+      enable-mutate:
+        description: 'Run mutation testing (requires rebar3_mutate plugin)'
+        type: boolean
+        required: false
+        default: false
+      mutate-min-score:
+        description: 'Minimum mutation score (0-100), fail if below'
+        type: string
+        required: false
+        default: ''
+      mutate-test-framework:
+        description: 'Test framework for mutation testing (eunit or ct)'
+        type: string
+        required: false
+        default: 'eunit'
+      mutate-args:
+        description: 'Extra args for rebar3 mutate'
+        type: string
+        required: false
+        default: ''
 
       # Database
       postgres:
@@ -547,10 +567,93 @@ jobs:
           version-type: ${{ inputs.version-type }}
       - run: rebar3 ex_doc
 
+  mutate:
+    name: Mutation Testing
+    needs: compile
+    if: ${{ inputs.enable-mutate }}
+    runs-on: ubuntu-24.04
+    outputs:
+      json: ${{ steps.extract.outputs.json }}
+    env:
+      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
+      PGPORT: ${{ inputs.postgres-port }}
+      PGUSER: ${{ inputs.postgres-user }}
+      PGPASSWORD: ${{ inputs.postgres-password }}
+      PGDATABASE: ${{ inputs.postgres-db }}
+      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
+      KAFKA_PORT: ${{ inputs.kafka-port }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch base branch
+        if: ${{ github.base_ref }}
+        run: git fetch origin "${{ github.base_ref }}" --depth=1
+      - uses: Taure/erlang-ci@v1
+        with:
+          otp-version: ${{ inputs.otp-version }}
+          rebar3-version: ${{ inputs.rebar3-version }}
+          version-file: ${{ inputs.version-file }}
+          version-type: ${{ inputs.version-type }}
+      - name: Start services
+        if: ${{ inputs.postgres || inputs.kafka }}
+        env:
+          ENABLE_POSTGRES: ${{ inputs.postgres }}
+          POSTGRES_VERSION: ${{ inputs.postgres-version }}
+          ENABLE_KAFKA: ${{ inputs.kafka }}
+          KAFKA_VERSION: ${{ inputs.kafka-version }}
+        run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
+      - name: Run mutation testing
+        id: mutate
+        env:
+          MUTATE_MIN_SCORE: ${{ inputs.mutate-min-score }}
+          MUTATE_ARGS: ${{ inputs.mutate-args }}
+          MUTATE_FRAMEWORK: ${{ inputs.mutate-test-framework }}
+          DIFF_BASE: ${{ github.base_ref && format('--diff origin/{0}', github.base_ref) || '' }}
+        run: |
+          set +e
+          args="--format json --test-framework $MUTATE_FRAMEWORK"
+          if [ -n "$MUTATE_MIN_SCORE" ]; then
+            args="$args --min-score $MUTATE_MIN_SCORE"
+          fi
+          if [ -n "$DIFF_BASE" ]; then
+            args="$args $DIFF_BASE"
+          fi
+          if [ -n "$MUTATE_ARGS" ]; then
+            args="$args $MUTATE_ARGS"
+          fi
+          rebar3 mutate $args 2>&1 | tee mutate-output.txt
+          echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+      - name: Extract mutation summary
+        if: ${{ always() && steps.mutate.outcome != 'cancelled' }}
+        id: extract
+        run: |
+          if [ ! -f mutate-output.txt ]; then exit 0; fi
+          json_line=$(grep '^{"overall_score' mutate-output.txt | head -1)
+          if [ -z "$json_line" ]; then exit 0; fi
+
+          summary=$(echo "$json_line" | jq -c '{
+            score: .overall_score,
+            total: .total_mutants,
+            killed: .total_killed,
+            survived: ([.modules[]? | .survived] | add // 0),
+            timed_out: ([.modules[]? | .timed_out] | add // 0),
+            compile_errors: ([.modules[]? | .compile_errors] | add // 0)
+          }')
+
+          echo "json<<MUTATE_EOF" >> "$GITHUB_OUTPUT"
+          echo "$summary" >> "$GITHUB_OUTPUT"
+          echo "MUTATE_EOF" >> "$GITHUB_OUTPUT"
+      - name: Check mutation testing result
+        if: ${{ always() && steps.mutate.outputs.exit-code }}
+        run: exit ${{ steps.mutate.outputs.exit-code }}
+
   summary:
     name: Summary
     if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' }}
-    needs: [audit, sbom, coverage]
+    needs: [audit, sbom, coverage, mutate]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -566,6 +669,7 @@ jobs:
           SBOM_JSON: ${{ needs.sbom.outputs.scan-json }}
           IGNORED_JSON: ${{ needs.sbom.outputs.ignored-json }}
           COVERAGE_JSON: ${{ needs.coverage.outputs.json }}
+          MUTATE_JSON: ${{ needs.mutate.outputs.json }}
         with:
           script: |
             const { renderSummary } = require('./scripts/ci-summary');
@@ -574,6 +678,7 @@ jobs:
               sbom: process.env.SBOM_JSON,
               ignored: process.env.IGNORED_JSON,
               coverage: process.env.COVERAGE_JSON,
+              mutate: process.env.MUTATE_JSON,
             });
             if (!body) return;
 

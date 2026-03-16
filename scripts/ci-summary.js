@@ -160,16 +160,53 @@ function renderCoverageSection(coverageJson) {
   return [`### ${badge} Code Coverage — ${pct}%`, `${covered} of ${valid} lines covered.`];
 }
 
-function renderSummary({ audit, sbom, ignored, coverage } = {}) {
+function mutateBadge(score) {
+  if (score >= 80) return ':green_circle:';
+  if (score >= 60) return ':yellow_circle:';
+  if (score >= 40) return ':orange_circle:';
+  return ':red_circle:';
+}
+
+function renderMutateSection(mutateJson) {
+  if (!mutateJson || !mutateJson.trim()) return null;
+
+  let data;
+  try { data = JSON.parse(mutateJson); } catch { return null; }
+
+  const score = data.score;
+  if (score === undefined || score === null) return null;
+
+  const total = data.total || 0;
+  const killed = data.killed || 0;
+  const survived = data.survived || 0;
+  const timedOut = data.timed_out || 0;
+
+  const badge = mutateBadge(score);
+  const pct = Number.isInteger(score) ? `${score}%` : `${score.toFixed(1)}%`;
+
+  const details = [];
+  details.push(`${killed} killed`);
+  if (survived > 0) details.push(`${survived} survived`);
+  if (timedOut > 0) details.push(`${timedOut} timed out`);
+
+  return [
+    `### ${badge} Mutation Testing — ${pct}`,
+    `${total} mutants tested. ${details.join(', ')}.`,
+  ];
+}
+
+function renderSummary({ audit, sbom, ignored, coverage, mutate } = {}) {
   const auditLines = renderAuditSection(audit);
   const sbomLines = renderSbomSection(sbom);
   const ignoredLines = renderIgnoredSection(ignored);
   const coverageLines = renderCoverageSection(coverage);
+  const mutateLines = renderMutateSection(mutate);
 
-  if (!auditLines && !sbomLines && !ignoredLines && !coverageLines) return null;
+  if (!auditLines && !sbomLines && !ignoredLines && !coverageLines && !mutateLines) return null;
 
   const sections = [];
   if (coverageLines) sections.push(coverageLines);
+  if (mutateLines) sections.push(mutateLines);
   if (auditLines) sections.push(auditLines);
   if (sbomLines) {
     const combined = [...sbomLines];
@@ -196,4 +233,4 @@ function renderAuditSummary(auditJson) {
   return renderSummary({ audit: auditJson });
 }
 
-module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderSummary };
+module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderMutateSection, renderSummary };
