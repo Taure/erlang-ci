@@ -9,6 +9,9 @@ on:
       ssh-key:
         description: 'SSH private key for accessing private dependencies'
         required: false
+      hex-api-key:
+        description: 'Hex.pm API key for accessing private packages'
+        required: false
     inputs:
       otp-version:
         description: 'Erlang/OTP version (e.g. "28.0"). Ignored if version-file is set.'
@@ -230,6 +233,8 @@ jobs:
   compile:
     name: Compile
     runs-on: ubuntu-24.04
+    env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -281,6 +286,8 @@ jobs:
     needs: [compile, prepare-checks]
     if: ${{ needs.prepare-checks.outputs.has-checks == 'true' }}
     runs-on: ubuntu-24.04
+    env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
     strategy:
       fail-fast: false
       matrix:
@@ -303,6 +310,8 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-dialyzer }}
     runs-on: ubuntu-24.04
+    env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -328,6 +337,8 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-audit }}
     runs-on: ubuntu-24.04
+    env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
     outputs:
       json: ${{ steps.audit.outputs.json }}
     steps:
@@ -406,6 +417,7 @@ jobs:
           --health-timeout 10s
           --health-retries 10
     env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
       PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
       PGPORT: ${{ inputs.postgres-port }}
       PGUSER: ${{ inputs.postgres-user }}
@@ -482,6 +494,7 @@ jobs:
           --health-timeout 10s
           --health-retries 10
     env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
       PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
       PGPORT: ${{ inputs.postgres-port }}
       PGUSER: ${{ inputs.postgres-user }}
@@ -522,6 +535,8 @@ jobs:
     needs: [eunit, ct]
     if: ${{ always() && inputs.enable-coverage }}
     runs-on: ubuntu-24.04
+    env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
     outputs:
       json: ${{ steps.extract.outputs.json }}
     steps:
@@ -576,6 +591,8 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-sbom }}
     runs-on: ubuntu-24.04
+    env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
     outputs:
       scan-json: ${{ steps.scan-extract.outputs.json }}
       ignored-json: ${{ steps.trivyignore.outputs.json }}
@@ -711,6 +728,7 @@ jobs:
           --health-timeout 10s
           --health-retries 10
     env:
+      HEX_API_KEY: ${{ secrets.hex-api-key }}
       PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
       PGPORT: ${{ inputs.postgres-port }}
       PGUSER: ${{ inputs.postgres-user }}

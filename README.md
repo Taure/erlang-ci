@@ -610,6 +610,7 @@ jobs:
 | Secret | Description |
 |--------|-------------|
 | `ssh-key` | SSH private key for accessing private git dependencies |
+| `hex-api-key` | Hex.pm API key for accessing private packages |
 
 For projects with private rebar3 deps (`{dep, {git, "git@github.com:org/repo.git", ...}}`), pass an SSH key so `rebar3 compile` can fetch them:
 
