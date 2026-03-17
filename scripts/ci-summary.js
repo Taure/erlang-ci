@@ -195,18 +195,47 @@ function renderMutateSection(mutateJson) {
   ];
 }
 
-function renderSummary({ audit, sbom, ignored, coverage, mutate } = {}) {
+function renderElpSection(label, jsonStr) {
+  if (!jsonStr || !jsonStr.trim()) return null;
+
+  let data;
+  try { data = JSON.parse(jsonStr); } catch { return null; }
+
+  const total = data.total || 0;
+  const errors = data.errors || 0;
+  const warnings = data.warnings || 0;
+
+  if (total === 0) {
+    return [`### :white_check_mark: ${label}`, 'No diagnostics.'];
+  }
+
+  const badge = errors > 0 ? ':red_circle:' : ':yellow_circle:';
+  const parts = [];
+  if (errors > 0) parts.push(`${errors} ${errors === 1 ? 'error' : 'errors'}`);
+  if (warnings > 0) parts.push(`${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`);
+
+  return [
+    `### ${badge} ${label} — ${parts.join(', ')}`,
+    `${total} ${total === 1 ? 'diagnostic' : 'diagnostics'} found. See job logs for details.`,
+  ];
+}
+
+function renderSummary({ audit, sbom, ignored, coverage, mutate, elpLint, elpEqwalize } = {}) {
   const auditLines = renderAuditSection(audit);
   const sbomLines = renderSbomSection(sbom);
   const ignoredLines = renderIgnoredSection(ignored);
   const coverageLines = renderCoverageSection(coverage);
   const mutateLines = renderMutateSection(mutate);
+  const elpLintLines = renderElpSection('ELP Lint', elpLint);
+  const elpEqwalizeLines = renderElpSection('ELP eqWAlize', elpEqwalize);
 
-  if (!auditLines && !sbomLines && !ignoredLines && !coverageLines && !mutateLines) return null;
+  if (!auditLines && !sbomLines && !ignoredLines && !coverageLines && !mutateLines && !elpLintLines && !elpEqwalizeLines) return null;
 
   const sections = [];
   if (coverageLines) sections.push(coverageLines);
   if (mutateLines) sections.push(mutateLines);
+  if (elpLintLines) sections.push(elpLintLines);
+  if (elpEqwalizeLines) sections.push(elpEqwalizeLines);
   if (auditLines) sections.push(auditLines);
   if (sbomLines) {
     const combined = [...sbomLines];
@@ -233,4 +262,4 @@ function renderAuditSummary(auditJson) {
   return renderSummary({ audit: auditJson });
 }
 
-module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderMutateSection, renderSummary };
+module.exports = { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderMutateSection, renderElpSection, renderSummary };
