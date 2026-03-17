@@ -436,10 +436,14 @@ jobs:
           ssh-key: ${{ secrets.ssh-key }}
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
-        run: docker compose -f ${{ inputs.extra-services-compose }} up -d --wait
+        env:
+          COMPOSE_FILE: ${{ inputs.extra-services-compose }}
+        run: docker compose -f "$COMPOSE_FILE" up -d --wait
       - name: Pre-test setup
         if: ${{ inputs.pre-test-command != '' }}
-        run: ${{ inputs.pre-test-command }}
+        env:
+          PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
+        run: eval "$PRE_TEST_COMMAND"
       - name: EUnit
         env:
           EUNIT_ARGS: ${{ inputs.eunit-args }}
@@ -513,10 +517,14 @@ jobs:
           ssh-key: ${{ secrets.ssh-key }}
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
-        run: docker compose -f ${{ inputs.extra-services-compose }} up -d --wait
+        env:
+          COMPOSE_FILE: ${{ inputs.extra-services-compose }}
+        run: docker compose -f "$COMPOSE_FILE" up -d --wait
       - name: Pre-test setup
         if: ${{ inputs.pre-test-command != '' }}
-        run: ${{ inputs.pre-test-command }}
+        env:
+          PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
+        run: eval "$PRE_TEST_COMMAND"
       - name: Common Test
         env:
           CT_ARGS: ${{ inputs.ct-args }}
@@ -750,10 +758,14 @@ jobs:
           ssh-key: ${{ secrets.ssh-key }}
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
-        run: docker compose -f ${{ inputs.extra-services-compose }} up -d --wait
+        env:
+          COMPOSE_FILE: ${{ inputs.extra-services-compose }}
+        run: docker compose -f "$COMPOSE_FILE" up -d --wait
       - name: Pre-test setup
         if: ${{ inputs.pre-test-command != '' }}
-        run: ${{ inputs.pre-test-command }}
+        env:
+          PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
+        run: eval "$PRE_TEST_COMMAND"
       - name: Run mutation testing
         id: mutate
         env:
