@@ -143,7 +143,7 @@ jobs:
 
 ### Web application with PostgreSQL
 
-When `postgres: true` is set, both eunit and CT jobs get a PostgreSQL service container. PG connection details are available as environment variables (`PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`).
+When `postgres: true` is set, eunit, CT, and mutation testing jobs get a PostgreSQL service container with built-in health checks (the job waits until PostgreSQL is ready). PG connection details are available as environment variables (`PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`).
 
 ```yaml
 jobs:
@@ -169,7 +169,7 @@ jobs:
       kafka: true
 ```
 
-Kafka is available at `localhost:9092`. The environment variables `KAFKA_HOST` and `KAFKA_PORT` are set for test configuration.
+Kafka runs in KRaft mode (no ZooKeeper) with built-in health checks. It is available at `localhost:9092`. The environment variables `KAFKA_HOST` and `KAFKA_PORT` are set for test configuration.
 
 ### Application with PostgreSQL and Kafka
 
@@ -209,6 +209,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    secrets: inherit
     with:
       otp-version: '28'
       otp-matrix: '["27", "28"]'
@@ -252,6 +253,36 @@ jobs:
 
 {cover_enabled, true}.
 ```
+
+### Enterprise application with private deps, custom services, and pre-test setup
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
+      hex-api-key: ${{ secrets.HEX_API_KEY }}
+    with:
+      otp-version: '28'
+      enable-ct: true
+      enable-audit: true
+      enable-coverage: true
+      enable-sbom: true
+      enable-sbom-scan: true
+      postgres: true
+      postgres-db: 'myapp_test'
+      kafka: true
+      extra-services-compose: docker-compose.test.yml
+      pre-test-command: |
+        rebar3 kura migrate
+        ./scripts/create_kafka_topics.sh
+```
+
+Services (PostgreSQL, Kafka) use native GitHub Actions service containers with built-in health checks — the job won't start until all services are healthy. The `extra-services-compose` input is the escape hatch for additional services (authz-mock, fake-gcs-server, etc.) that aren't built in.
 
 ### Auto-detect .tool-versions
 
@@ -415,7 +446,7 @@ jobs:
 
 ### Company-internal reusable workflow wrapping erlang-ci
 
-For organizations that want to enforce additional steps across all repos, create an internal wrapper workflow:
+For organizations that want to enforce additional steps across all repos, create an internal wrapper workflow. Reusable workflows can nest up to 10 levels deep.
 
 ```yaml
 # company/.github/workflows/erlang-ci.yml
@@ -430,6 +461,15 @@ on:
       enable-ct:
         type: boolean
         default: false
+      postgres:
+        type: boolean
+        default: false
+      pre-test-command:
+        type: string
+        default: ''
+      extra-services-compose:
+        type: string
+        default: ''
 
 jobs:
   ci:
@@ -437,11 +477,15 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    secrets: inherit  # passes ssh-key, hex-api-key from caller
     with:
       otp-version: ${{ inputs.otp-version }}
       enable-ct: ${{ inputs.enable-ct }}
       enable-audit: true
       enable-dependency-submission: true
+      postgres: ${{ inputs.postgres }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      extra-services-compose: ${{ inputs.extra-services-compose }}
 
   compliance:
     needs: ci
@@ -450,15 +494,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: company/license-checker@v1
       - uses: company/sbom-attestation@v1
-
-  black-box:
-    needs: ci
-    runs-on: ubuntu-latest
-    services:
-      app:
-        image: ${{ needs.ci.outputs.image }}  # if you build a container
-    steps:
-      - uses: company/black-box-tests@v1
 ```
 
 Individual repos then call the company wrapper with minimal config:
@@ -467,8 +502,13 @@ Individual repos then call the company wrapper with minimal config:
 jobs:
   ci:
     uses: company/.github/workflows/erlang-ci.yml@v1
+    secrets: inherit
     with:
       otp-version: '28'
+      enable-ct: true
+      postgres: true
+      pre-test-command: |
+        rebar3 kura migrate
 ```
 
 ### Using the composite action for full control
@@ -634,6 +674,31 @@ steps:
       otp-version: '28'
       ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
   - run: rebar3 compile
+```
+
+For private Hex packages, pass `hex-api-key`:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    secrets:
+      hex-api-key: ${{ secrets.HEX_API_KEY }}
+    with:
+      otp-version: '28'
+```
+
+Both secrets can be combined:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    secrets:
+      ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
+      hex-api-key: ${{ secrets.HEX_API_KEY }}
+    with:
+      otp-version: '28'
 ```
 
 ## PR summary comment
