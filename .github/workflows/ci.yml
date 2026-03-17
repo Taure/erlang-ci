@@ -12,6 +12,9 @@ on:
       hex-api-key:
         description: 'Hex.pm API key for accessing private packages'
         required: false
+      docker-registry-password:
+        description: 'Password/key for docker login before pulling extra-services-compose images'
+        required: false
     inputs:
       otp-version:
         description: 'Erlang/OTP version (e.g. "28.0"). Ignored if version-file is set.'
@@ -141,54 +144,17 @@ on:
         required: false
         default: ''
 
-      # Database
-      postgres:
-        description: 'Enable PostgreSQL service container'
-        type: boolean
-        required: false
-        default: false
-      postgres-version:
-        description: 'PostgreSQL version'
+      # Docker registry auth (for extra-services-compose images from private registries)
+      docker-registry:
+        description: 'Docker registry URL to authenticate with before pulling extra services'
         type: string
         required: false
-        default: '17'
-      postgres-db:
-        description: 'PostgreSQL database name'
+        default: ''
+      docker-registry-username:
+        description: 'Docker registry username'
         type: string
         required: false
-        default: 'test_db'
-      postgres-user:
-        description: 'PostgreSQL username'
-        type: string
-        required: false
-        default: 'postgres'
-      postgres-password:
-        description: 'PostgreSQL password'
-        type: string
-        required: false
-        default: 'postgres'
-      postgres-port:
-        description: 'PostgreSQL port'
-        type: string
-        required: false
-        default: '5432'
-
-      # Kafka
-      kafka:
-        description: 'Enable Kafka service container'
-        type: boolean
-        required: false
-        default: false
-      kafka-version:
-        description: 'Kafka Docker image version (uses apache/kafka)'
-        type: string
-        required: false
-        default: '3.9'
-      kafka-port:
-        description: 'Kafka broker port'
-        type: string
-        required: false
-        default: '9092'
+        default: ''
 
       # Summary
       enable-summary:
@@ -384,47 +350,8 @@ jobs:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: ${{ inputs.postgres && format('postgres:{0}', inputs.postgres-version) || '' }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      kafka:
-        image: ${{ inputs.kafka && format('apache/kafka:{0}', inputs.kafka-version) || '' }}
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${{ inputs.kafka-port }}
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        ports:
-          - ${{ inputs.kafka-port }}:9092
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
-      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -434,6 +361,13 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
           ssh-key: ${{ secrets.ssh-key }}
+      - name: Docker registry login
+        if: ${{ inputs.docker-registry != '' }}
+        env:
+          REGISTRY: ${{ inputs.docker-registry }}
+          USERNAME: ${{ inputs.docker-registry-username }}
+          PASSWORD: ${{ secrets.docker-registry-password }}
+        run: echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin "$REGISTRY"
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
         env:
@@ -465,47 +399,8 @@ jobs:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: ${{ inputs.postgres && format('postgres:{0}', inputs.postgres-version) || '' }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      kafka:
-        image: ${{ inputs.kafka && format('apache/kafka:{0}', inputs.kafka-version) || '' }}
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${{ inputs.kafka-port }}
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        ports:
-          - ${{ inputs.kafka-port }}:9092
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
-      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -515,6 +410,13 @@ jobs:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
           ssh-key: ${{ secrets.ssh-key }}
+      - name: Docker registry login
+        if: ${{ inputs.docker-registry != '' }}
+        env:
+          REGISTRY: ${{ inputs.docker-registry }}
+          USERNAME: ${{ inputs.docker-registry-username }}
+          PASSWORD: ${{ secrets.docker-registry-password }}
+        run: echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin "$REGISTRY"
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
         env:
@@ -703,47 +605,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       json: ${{ steps.extract.outputs.json }}
-    services:
-      postgres:
-        image: ${{ inputs.postgres && format('postgres:{0}', inputs.postgres-version) || '' }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      kafka:
-        image: ${{ inputs.kafka && format('apache/kafka:{0}', inputs.kafka-version) || '' }}
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${{ inputs.kafka-port }}
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        ports:
-          - ${{ inputs.kafka-port }}:9092
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
-      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -756,6 +619,13 @@ jobs:
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
+      - name: Docker registry login
+        if: ${{ inputs.docker-registry != '' }}
+        env:
+          REGISTRY: ${{ inputs.docker-registry }}
+          USERNAME: ${{ inputs.docker-registry-username }}
+          PASSWORD: ${{ secrets.docker-registry-password }}
+        run: echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin "$REGISTRY"
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
         env:

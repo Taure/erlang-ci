@@ -141,9 +141,9 @@ jobs:
       otp-matrix: '["27", "28"]'
 ```
 
-### Web application with PostgreSQL
+### Application with services (PostgreSQL, Kafka, etc.)
 
-When `postgres: true` is set, eunit, CT, and mutation testing jobs get a PostgreSQL service container with built-in health checks (the job waits until PostgreSQL is ready). PG connection details are available as environment variables (`PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`).
+Services are managed via `extra-services-compose` — provide a `docker-compose.yml` and erlang-ci starts it before tests. This gives you full control over service versions, images, environment variables, and startup ordering.
 
 ```yaml
 jobs:
@@ -152,36 +152,55 @@ jobs:
     with:
       otp-version: '28'
       enable-ct: true
-      postgres: true
-      postgres-version: '17'
-      postgres-db: 'myapp_test'
+      extra-services-compose: docker-compose.ci.yml
+      pre-test-command: |
+        ./scripts/wait_for_services.sh
 ```
 
-### Application with Kafka
+Example `docker-compose.ci.yml`:
 
 ```yaml
-jobs:
-  ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
-    with:
-      otp-version: '28'
-      enable-ct: true
-      kafka: true
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: myapp_test
+    ports:
+      - 5432:5432
+
+  kafka:
+    image: docker.io/bitnami/kafka:3.7
+    ports:
+      - 9092:9092
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
 ```
 
-Kafka runs in KRaft mode (no ZooKeeper) with built-in health checks. It is available at `localhost:9092`. The environment variables `KAFKA_HOST` and `KAFKA_PORT` are set for test configuration.
+### Application with private registry images
 
-### Application with PostgreSQL and Kafka
+If your docker-compose pulls images from a private registry, provide credentials via `docker-registry` inputs and `docker-registry-password` secret:
 
 ```yaml
 jobs:
   ci:
     uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    secrets:
+      docker-registry-password: ${{ secrets.REGISTRY_KEY }}
     with:
       otp-version: '28'
       enable-ct: true
-      postgres: true
-      kafka: true
+      docker-registry: my-registry.example.com
+      docker-registry-username: _json_key
+      extra-services-compose: docker-compose.ci.yml
 ```
 
 ### Library with mutation testing
@@ -225,7 +244,7 @@ jobs:
       enable-dependency-submission: true
       enable-mutate: true
       mutate-min-score: '80'
-      postgres: true
+      extra-services-compose: docker-compose.ci.yml
 
   release:
     needs: ci
@@ -266,6 +285,7 @@ jobs:
     secrets:
       ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
       hex-api-key: ${{ secrets.HEX_API_KEY }}
+      docker-registry-password: ${{ secrets.REGISTRY_KEY }}
     with:
       otp-version: '28'
       enable-ct: true
@@ -273,16 +293,15 @@ jobs:
       enable-coverage: true
       enable-sbom: true
       enable-sbom-scan: true
-      postgres: true
-      postgres-db: 'myapp_test'
-      kafka: true
-      extra-services-compose: docker-compose.test.yml
+      docker-registry: my-registry.example.com
+      docker-registry-username: _json_key
+      extra-services-compose: docker-compose.ci.yml
       pre-test-command: |
         rebar3 kura migrate
         ./scripts/create_kafka_topics.sh
 ```
 
-Services (PostgreSQL, Kafka) use native GitHub Actions service containers with built-in health checks — the job won't start until all services are healthy. The `extra-services-compose` input is the escape hatch for additional services (authz-mock, fake-gcs-server, etc.) that aren't built in.
+All services (PostgreSQL, Kafka, custom) are managed via `docker-compose.ci.yml`. If images are in a private registry, provide credentials via `docker-registry` inputs and `docker-registry-password` secret — the login runs before `docker compose up`.
 
 ### Auto-detect .tool-versions
 
@@ -414,7 +433,7 @@ jobs:
       otp-version: '28'
       enable-ct: true
       enable-audit: true
-      postgres: true
+      extra-services-compose: docker-compose.ci.yml
 
   black-box:
     needs: ci
@@ -461,9 +480,6 @@ on:
       enable-ct:
         type: boolean
         default: false
-      postgres:
-        type: boolean
-        default: false
       pre-test-command:
         type: string
         default: ''
@@ -477,13 +493,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    secrets: inherit  # passes ssh-key, hex-api-key from caller
+    secrets: inherit  # passes ssh-key, hex-api-key, docker-registry-password from caller
     with:
       otp-version: ${{ inputs.otp-version }}
       enable-ct: ${{ inputs.enable-ct }}
       enable-audit: true
       enable-dependency-submission: true
-      postgres: ${{ inputs.postgres }}
       pre-test-command: ${{ inputs.pre-test-command }}
       extra-services-compose: ${{ inputs.extra-services-compose }}
 
@@ -506,7 +521,7 @@ jobs:
     with:
       otp-version: '28'
       enable-ct: true
-      postgres: true
+      extra-services-compose: docker-compose.ci.yml
       pre-test-command: |
         rebar3 kura migrate
 ```
@@ -593,13 +608,13 @@ jobs:
     with:
       otp-version: '28'
       enable-ct: true
-      postgres: true
+      extra-services-compose: docker-compose.ci.yml
       pre-test-command: |
         rebar3 kura migrate
         ./scripts/create_kafka_topics.sh
 ```
 
-`extra-services-compose` starts additional Docker services alongside the built-in ones:
+`extra-services-compose` starts services via `docker compose up -d --wait` before tests run:
 
 ```yaml
 jobs:
@@ -608,7 +623,7 @@ jobs:
     with:
       otp-version: '28'
       enable-ct: true
-      extra-services-compose: docker-compose.test.yml
+      extra-services-compose: docker-compose.ci.yml
 ```
 
 ### Caching (composite action only)
@@ -617,24 +632,12 @@ jobs:
 |-------|---------|-------------|
 | `cache-key-prefix` | `erlang-ci` | Custom cache key prefix for cache isolation |
 
-### PostgreSQL
+### Docker registry auth
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `postgres` | `false` | Enable PostgreSQL service for eunit and CT |
-| `postgres-version` | `17` | PostgreSQL Docker image version |
-| `postgres-db` | `test_db` | Database name |
-| `postgres-user` | `postgres` | Username |
-| `postgres-password` | `postgres` | Password |
-| `postgres-port` | `5432` | Host port |
-
-### Kafka
-
-| Input | Default | Description |
-|-------|---------|-------------|
-| `kafka` | `false` | Enable Kafka service for eunit and CT |
-| `kafka-version` | `3.9` | Apache Kafka Docker image version |
-| `kafka-port` | `9092` | Broker port |
+| `docker-registry` | — | Docker registry URL to authenticate with before pulling extra services |
+| `docker-registry-username` | — | Docker registry username |
 
 ### Test configuration
 
@@ -651,6 +654,7 @@ jobs:
 |--------|-------------|
 | `ssh-key` | SSH private key for accessing private git dependencies |
 | `hex-api-key` | Hex.pm API key for accessing private packages |
+| `docker-registry-password` | Password/key for docker login before pulling `extra-services-compose` images |
 
 For projects with private rebar3 deps (`{dep, {git, "git@github.com:org/repo.git", ...}}`), pass an SSH key so `rebar3 compile` can fetch them:
 
