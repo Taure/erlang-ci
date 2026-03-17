@@ -1,5 +1,8 @@
 name: Erlang CI
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
     secrets:
@@ -659,6 +662,8 @@ jobs:
     name: Dependency Submission
     needs: compile
     if: ${{ inputs.enable-dependency-submission && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -787,6 +792,8 @@ jobs:
     name: Summary
     if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     needs: [audit, sbom, coverage, mutate]
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
