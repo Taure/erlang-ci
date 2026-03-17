@@ -699,7 +699,7 @@ jobs:
   mutate:
     name: Mutation Testing
     needs: compile
-    if: ${{ inputs.enable-mutate }}
+    if: ${{ inputs.enable-mutate && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     outputs:
       json: ${{ steps.extract.outputs.json }}
