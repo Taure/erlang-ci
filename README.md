@@ -571,6 +571,36 @@ jobs:
 | `eunit-args` | — | Extra args for `rebar3 eunit` (e.g. `--module=foo_tests`) |
 | `rebar3-compile-args` | — | Extra args for `rebar3 compile` |
 
+### Secrets (reusable workflow)
+
+| Secret | Description |
+|--------|-------------|
+| `ssh-key` | SSH private key for accessing private git dependencies |
+
+For projects with private rebar3 deps (`{dep, {git, "git@github.com:org/repo.git", ...}}`), pass an SSH key so `rebar3 compile` can fetch them:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    secrets:
+      ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
+    with:
+      otp-version: '28'
+```
+
+The composite action accepts `ssh-key` as an input:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: Taure/erlang-ci@v1
+    with:
+      otp-version: '28'
+      ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
+  - run: rebar3 compile
+```
+
 ## PR summary comment
 
 When `enable-summary` is enabled and any reporting feature is active (`enable-coverage`, `enable-audit`, or `enable-sbom-scan`), a single unified comment is posted on PRs with all results. The comment is updated on re-runs (never duplicated).

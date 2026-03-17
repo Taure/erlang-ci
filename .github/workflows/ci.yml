@@ -2,6 +2,10 @@ name: Erlang CI
 
 on:
   workflow_call:
+    secrets:
+      ssh-key:
+        description: 'SSH private key for accessing private dependencies'
+        required: false
     inputs:
       otp-version:
         description: 'Erlang/OTP version (e.g. "28.0"). Ignored if version-file is set.'
@@ -224,6 +228,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Compile
         env:
           COMPILE_ARGS: ${{ inputs.rebar3-compile-args }}
@@ -277,6 +282,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - run: rebar3 ${{ matrix.command }}
 
   dialyzer:
@@ -294,6 +300,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Restore PLT cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -320,6 +327,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Run audit
         id: audit
         env:
@@ -368,6 +376,7 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Start services
         if: ${{ inputs.postgres || inputs.kafka }}
         env:
@@ -413,6 +422,7 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Start services
         if: ${{ inputs.postgres || inputs.kafka }}
         env:
@@ -451,6 +461,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Download coverdata artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -505,6 +516,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Generate SBOM
         run: rebar3 sbom --output bom.xml --force
       - name: Generate .trivyignore from OTP advisories
@@ -610,6 +622,7 @@ jobs:
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
+          ssh-key: ${{ secrets.ssh-key }}
       - name: Start services
         if: ${{ inputs.postgres || inputs.kafka }}
         env:
