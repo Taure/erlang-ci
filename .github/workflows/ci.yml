@@ -147,8 +147,8 @@ on:
         type: boolean
         required: false
         default: false
-      enable-elp-eqwalizer:
-        description: 'Run ELP eqwalizer-all type checking'
+      enable-elp-eqwalize:
+        description: 'Run ELP eqwalize-all type checking'
         type: boolean
         required: false
         default: false
@@ -386,10 +386,10 @@ jobs:
       - name: ELP Lint
         run: elp lint
 
-  elp-eqwalizer:
-    name: ELP eqWAlizer
+  elp-eqwalize:
+    name: ELP eqWAlize
     needs: compile
-    if: ${{ inputs.enable-elp-eqwalizer }}
+    if: ${{ inputs.enable-elp-eqwalize }}
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
@@ -421,7 +421,7 @@ jobs:
       - name: Compile
         run: rebar3 compile
       - name: eqWAlizer
-        run: elp eqwalizer-all
+        run: elp eqwalize-all
 
   audit:
     name: Audit
