@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderMutateSection, renderSummary } = require('./ci-summary');
+const { renderAuditSummary, renderAuditSection, renderSbomSection, renderIgnoredSection, renderCoverageSection, renderMutateSection, renderElpSection, renderSummary } = require('./ci-summary');
 
 describe('renderAuditSection', () => {
   it('returns null for empty input', () => {
@@ -289,6 +289,65 @@ describe('renderMutateSection', () => {
   });
 });
 
+describe('renderElpSection', () => {
+  it('returns null for empty input', () => {
+    assert.equal(renderElpSection('ELP Lint', ''), null);
+    assert.equal(renderElpSection('ELP Lint', null), null);
+    assert.equal(renderElpSection('ELP Lint', undefined), null);
+    assert.equal(renderElpSection('ELP Lint', '   '), null);
+  });
+
+  it('returns null for invalid JSON', () => {
+    assert.equal(renderElpSection('ELP Lint', 'not json'), null);
+  });
+
+  it('renders clean result with checkmark', () => {
+    const json = JSON.stringify({ errors: 0, warnings: 0, total: 0 });
+    const lines = renderElpSection('ELP Lint', json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':white_check_mark:'));
+    assert.ok(text.includes('ELP Lint'));
+    assert.ok(text.includes('No diagnostics'));
+  });
+
+  it('renders errors with red badge', () => {
+    const json = JSON.stringify({ errors: 3, warnings: 1, total: 4 });
+    const lines = renderElpSection('ELP Lint', json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':red_circle:'));
+    assert.ok(text.includes('3 errors'));
+    assert.ok(text.includes('1 warning'));
+    assert.ok(text.includes('4 diagnostics found'));
+  });
+
+  it('renders warnings only with yellow badge', () => {
+    const json = JSON.stringify({ errors: 0, warnings: 5, total: 5 });
+    const lines = renderElpSection('ELP eqWAlize', json);
+    const text = lines.join('\n');
+    assert.ok(text.includes(':yellow_circle:'));
+    assert.ok(text.includes('5 warnings'));
+    assert.ok(!text.includes('error'));
+    assert.ok(text.includes('ELP eqWAlize'));
+  });
+
+  it('uses singular for single error/warning', () => {
+    const json = JSON.stringify({ errors: 1, warnings: 1, total: 2 });
+    const lines = renderElpSection('ELP Lint', json);
+    const text = lines.join('\n');
+    assert.ok(text.includes('1 error,'));
+    assert.ok(text.includes('1 warning'));
+    assert.ok(!text.includes('errors'));
+    assert.ok(!text.includes('warnings'));
+  });
+
+  it('points to job logs for details', () => {
+    const json = JSON.stringify({ errors: 2, warnings: 0, total: 2 });
+    const lines = renderElpSection('ELP Lint', json);
+    const text = lines.join('\n');
+    assert.ok(text.includes('See job logs for details'));
+  });
+});
+
 describe('renderSummary', () => {
   it('returns null when no data', () => {
     assert.equal(renderSummary({}), null);
@@ -382,6 +441,21 @@ describe('renderSummary', () => {
     const auditPos = result.indexOf(':shield:');
     assert.ok(coveragePos < mutatePos, 'coverage should appear before mutation');
     assert.ok(mutatePos < auditPos, 'mutation should appear before audit');
+  });
+
+  it('renders ELP sections between mutate and audit', () => {
+    const mutate = JSON.stringify({ score: 80, total: 10, killed: 8, survived: 2, timed_out: 0 });
+    const elpLint = JSON.stringify({ errors: 0, warnings: 0, total: 0 });
+    const elpEqwalize = JSON.stringify({ errors: 2, warnings: 0, total: 2 });
+    const audit = JSON.stringify({ vulnerabilities: [], dependencies_scanned: 5 });
+    const result = renderSummary({ audit, mutate, elpLint, elpEqwalize });
+    const mutatePos = result.indexOf('Mutation Testing');
+    const lintPos = result.indexOf('ELP Lint');
+    const eqwPos = result.indexOf('ELP eqWAlize');
+    const auditPos = result.indexOf(':shield:');
+    assert.ok(mutatePos < lintPos, 'mutation should appear before ELP lint');
+    assert.ok(lintPos < eqwPos, 'ELP lint should appear before ELP eqwalize');
+    assert.ok(eqwPos < auditPos, 'ELP eqwalize should appear before audit');
   });
 
   it('renders coverage first then audit', () => {

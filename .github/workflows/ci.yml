@@ -356,6 +356,8 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
+    outputs:
+      json: ${{ steps.extract.outputs.json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -384,7 +386,29 @@ jobs:
       - name: Compile
         run: rebar3 compile
       - name: ELP Lint
-        run: elp lint
+        id: lint
+        run: |
+          set +e
+          elp lint --format json 2>&1 | tee elp-lint-output.jsonl
+          echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+      - name: Extract lint summary
+        if: ${{ always() && steps.lint.outcome != 'cancelled' }}
+        id: extract
+        run: |
+          if [ ! -f elp-lint-output.jsonl ]; then exit 0; fi
+          # Count by severity only — full diagnostics stay in job logs
+          summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '{
+            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+            total: length
+          }')
+          echo "json<<ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
+          echo "$summary" >> "$GITHUB_OUTPUT"
+          echo "ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
+      - name: Check lint result
+        if: ${{ always() && steps.lint.outputs.exit-code }}
+        run: exit ${{ steps.lint.outputs.exit-code }}
 
   elp-eqwalize:
     name: ELP eqWAlize
@@ -393,6 +417,8 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
+    outputs:
+      json: ${{ steps.extract.outputs.json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -420,8 +446,29 @@ jobs:
             | tar -xz -C /usr/local/bin
       - name: Compile
         run: rebar3 compile
-      - name: eqWAlizer
-        run: elp eqwalize-all
+      - name: eqWAlize
+        id: eqwalize
+        run: |
+          set +e
+          elp eqwalize-all --format json 2>&1 | tee elp-eqwalize-output.jsonl
+          echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+      - name: Extract eqWAlize summary
+        if: ${{ always() && steps.eqwalize.outcome != 'cancelled' }}
+        id: extract
+        run: |
+          if [ ! -f elp-eqwalize-output.jsonl ]; then exit 0; fi
+          summary=$(cat elp-eqwalize-output.jsonl | grep '^\s*{' | jq -sc '{
+            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+            total: length
+          }')
+          echo "json<<ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
+          echo "$summary" >> "$GITHUB_OUTPUT"
+          echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
+      - name: Check eqWAlize result
+        if: ${{ always() && steps.eqwalize.outputs.exit-code }}
+        run: exit ${{ steps.eqwalize.outputs.exit-code }}
 
   audit:
     name: Audit
@@ -912,7 +959,7 @@ jobs:
   summary:
     name: Summary
     if: ${{ always() && inputs.enable-summary && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-    needs: [audit, sbom, coverage, mutate]
+    needs: [audit, sbom, coverage, mutate, elp-lint, elp-eqwalize]
     permissions:
       pull-requests: write
     runs-on: ubuntu-24.04
@@ -931,6 +978,8 @@ jobs:
           IGNORED_JSON: ${{ needs.sbom.outputs.ignored-json }}
           COVERAGE_JSON: ${{ needs.coverage.outputs.json }}
           MUTATE_JSON: ${{ needs.mutate.outputs.json }}
+          ELP_LINT_JSON: ${{ needs.elp-lint.outputs.json }}
+          ELP_EQWALIZE_JSON: ${{ needs.elp-eqwalize.outputs.json }}
         with:
           script: |
             const { renderSummary } = require('./scripts/ci-summary');
@@ -940,6 +989,8 @@ jobs:
               ignored: process.env.IGNORED_JSON,
               coverage: process.env.COVERAGE_JSON,
               mutate: process.env.MUTATE_JSON,
+              elpLint: process.env.ELP_LINT_JSON,
+              elpEqwalize: process.env.ELP_EQWALIZE_JSON,
             });
             if (!body) return;
 
