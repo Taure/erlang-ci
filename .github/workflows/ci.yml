@@ -390,14 +390,13 @@ jobs:
         run: |
           set +e
           elp lint --format json 2>&1 | tee elp-lint-output.jsonl
-          echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           set -e
       - name: Extract lint summary
-        if: ${{ always() && steps.lint.outcome != 'cancelled' }}
         id: extract
         run: |
           if [ ! -f elp-lint-output.jsonl ]; then exit 0; fi
-          # Count by severity only — full diagnostics stay in job logs
+          # Count by severity — ELP --format json exits non-zero even for
+          # disabled/weak warnings, so we determine pass/fail from actual errors.
           summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '{
             errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
             warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
@@ -406,9 +405,11 @@ jobs:
           echo "json<<ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
           echo "$summary" >> "$GITHUB_OUTPUT"
           echo "ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
-      - name: Check lint result
-        if: ${{ always() && steps.lint.outputs.exit-code }}
-        run: exit ${{ steps.lint.outputs.exit-code }}
+          errors=$(echo "$summary" | jq '.errors')
+          if [ "$errors" -gt 0 ]; then
+            echo "::error::ELP lint found $errors error(s)"
+            exit 1
+          fi
 
   elp-eqwalize:
     name: ELP eqWAlize
@@ -451,10 +452,8 @@ jobs:
         run: |
           set +e
           elp eqwalize-all --format json 2>&1 | tee elp-eqwalize-output.jsonl
-          echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           set -e
       - name: Extract eqWAlize summary
-        if: ${{ always() && steps.eqwalize.outcome != 'cancelled' }}
         id: extract
         run: |
           if [ ! -f elp-eqwalize-output.jsonl ]; then exit 0; fi
@@ -466,9 +465,11 @@ jobs:
           echo "json<<ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
           echo "$summary" >> "$GITHUB_OUTPUT"
           echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
-      - name: Check eqWAlize result
-        if: ${{ always() && steps.eqwalize.outputs.exit-code }}
-        run: exit ${{ steps.eqwalize.outputs.exit-code }}
+          errors=$(echo "$summary" | jq '.errors')
+          if [ "$errors" -gt 0 ]; then
+            echo "::error::ELP eqWAlize found $errors error(s)"
+            exit 1
+          fi
 
   audit:
     name: Audit
