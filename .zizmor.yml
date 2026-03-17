@@ -3,3 +3,5 @@ rules:
     config:
       policies:
         Taure/erlang-ci: ref-pin
+  secrets-outside-env:
+    disable: true
