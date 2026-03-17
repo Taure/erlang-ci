@@ -212,6 +212,16 @@ on:
         type: string
         required: false
         default: ''
+      pre-test-command:
+        description: 'Shell command to run before tests (e.g., DB migrations, topic creation)'
+        type: string
+        required: false
+        default: ''
+      extra-services-compose:
+        description: 'Path to docker-compose.yml for additional services'
+        type: string
+        required: false
+        default: ''
 
 jobs:
   compile:
@@ -385,6 +395,12 @@ jobs:
           ENABLE_KAFKA: ${{ inputs.kafka }}
           KAFKA_VERSION: ${{ inputs.kafka-version }}
         run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
+      - name: Start extra services
+        if: ${{ inputs.extra-services-compose != '' }}
+        run: docker compose -f ${{ inputs.extra-services-compose }} up -d --wait
+      - name: Pre-test setup
+        if: ${{ inputs.pre-test-command != '' }}
+        run: ${{ inputs.pre-test-command }}
       - name: EUnit
         env:
           EUNIT_ARGS: ${{ inputs.eunit-args }}
@@ -431,6 +447,12 @@ jobs:
           ENABLE_KAFKA: ${{ inputs.kafka }}
           KAFKA_VERSION: ${{ inputs.kafka-version }}
         run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
+      - name: Start extra services
+        if: ${{ inputs.extra-services-compose != '' }}
+        run: docker compose -f ${{ inputs.extra-services-compose }} up -d --wait
+      - name: Pre-test setup
+        if: ${{ inputs.pre-test-command != '' }}
+        run: ${{ inputs.pre-test-command }}
       - name: Common Test
         env:
           CT_ARGS: ${{ inputs.ct-args }}
@@ -631,6 +653,12 @@ jobs:
           ENABLE_KAFKA: ${{ inputs.kafka }}
           KAFKA_VERSION: ${{ inputs.kafka-version }}
         run: curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/start-services.sh | bash
+      - name: Start extra services
+        if: ${{ inputs.extra-services-compose != '' }}
+        run: docker compose -f ${{ inputs.extra-services-compose }} up -d --wait
+      - name: Pre-test setup
+        if: ${{ inputs.pre-test-command != '' }}
+        run: ${{ inputs.pre-test-command }}
       - name: Run mutation testing
         id: mutate
         env:

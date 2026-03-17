@@ -537,6 +537,40 @@ jobs:
 | `mutate-args` | — | Extra args for `rebar3 mutate` |
 | `enable-summary` | `true` | Post CI summary comment on PRs (coverage, audit, SBOM scan results) |
 
+### Custom setup
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `pre-test-command` | — | Shell command to run before tests (e.g., DB migrations, Kafka topic creation) |
+| `extra-services-compose` | — | Path to `docker-compose.yml` for additional services |
+
+`pre-test-command` runs in eunit, CT, and mutation testing jobs after services are started:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+      enable-ct: true
+      postgres: true
+      pre-test-command: |
+        rebar3 kura migrate
+        ./scripts/create_kafka_topics.sh
+```
+
+`extra-services-compose` starts additional Docker services alongside the built-in ones:
+
+```yaml
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1
+    with:
+      otp-version: '28'
+      enable-ct: true
+      extra-services-compose: docker-compose.test.yml
+```
+
 ### Caching (composite action only)
 
 | Input | Default | Description |
