@@ -158,55 +158,6 @@ on:
         required: false
         default: '2026-02-27'
 
-      # Database
-      postgres:
-        description: 'Enable PostgreSQL service container'
-        type: boolean
-        required: false
-        default: false
-      postgres-version:
-        description: 'PostgreSQL version'
-        type: string
-        required: false
-        default: '17'
-      postgres-db:
-        description: 'PostgreSQL database name'
-        type: string
-        required: false
-        default: 'test_db'
-      postgres-user:
-        description: 'PostgreSQL username'
-        type: string
-        required: false
-        default: 'postgres'
-      postgres-password:
-        description: 'PostgreSQL password'
-        type: string
-        required: false
-        default: 'postgres'
-      postgres-port:
-        description: 'PostgreSQL port'
-        type: string
-        required: false
-        default: '5432'
-
-      # Kafka
-      kafka:
-        description: 'Enable Kafka service container'
-        type: boolean
-        required: false
-        default: false
-      kafka-version:
-        description: 'Kafka Docker image version (uses apache/kafka)'
-        type: string
-        required: false
-        default: '3.9'
-      kafka-port:
-        description: 'Kafka broker port'
-        type: string
-        required: false
-        default: '9092'
-
       # Summary
       enable-summary:
         description: 'Post a status summary comment on PRs'
@@ -523,47 +474,8 @@ jobs:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: ${{ inputs.postgres && format('postgres:{0}', inputs.postgres-version) || '' }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      kafka:
-        image: ${{ inputs.kafka && format('apache/kafka:{0}', inputs.kafka-version) || '' }}
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${{ inputs.kafka-port }}
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        ports:
-          - ${{ inputs.kafka-port }}:9092
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
-      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -604,47 +516,8 @@ jobs:
       fail-fast: false
       matrix:
         otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
-    services:
-      postgres:
-        image: ${{ inputs.postgres && format('postgres:{0}', inputs.postgres-version) || '' }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      kafka:
-        image: ${{ inputs.kafka && format('apache/kafka:{0}', inputs.kafka-version) || '' }}
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${{ inputs.kafka-port }}
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        ports:
-          - ${{ inputs.kafka-port }}:9092
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
-      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -842,47 +715,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       json: ${{ steps.extract.outputs.json }}
-    services:
-      postgres:
-        image: ${{ inputs.postgres && format('postgres:{0}', inputs.postgres-version) || '' }}
-        env:
-          POSTGRES_USER: ${{ inputs.postgres-user }}
-          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-          POSTGRES_DB: ${{ inputs.postgres-db }}
-        ports:
-          - ${{ inputs.postgres-port }}:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      kafka:
-        image: ${{ inputs.kafka && format('apache/kafka:{0}', inputs.kafka-version) || '' }}
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${{ inputs.kafka-port }}
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        ports:
-          - ${{ inputs.kafka-port }}:9092
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
-      PGHOST: ${{ inputs.postgres && 'localhost' || '' }}
-      PGPORT: ${{ inputs.postgres-port }}
-      PGUSER: ${{ inputs.postgres-user }}
-      PGPASSWORD: ${{ inputs.postgres-password }}
-      PGDATABASE: ${{ inputs.postgres-db }}
-      KAFKA_HOST: ${{ inputs.kafka && 'localhost' || '' }}
-      KAFKA_PORT: ${{ inputs.kafka-port }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
