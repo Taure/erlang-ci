@@ -938,17 +938,17 @@ jobs:
         id: extract
         run: |
           if [ ! -f mutate-output.txt ]; then exit 0; fi
-          json_line=$(grep '^{"overall_score' mutate-output.txt | head -1)
-          if [ -z "$json_line" ]; then exit 0; fi
+          grep '^{"overall_score' mutate-output.txt | head -1 > mutate-json.txt
+          if [ ! -s mutate-json.txt ]; then exit 0; fi
 
-          summary=$(echo "$json_line" | jq -c '{
+          summary=$(jq -c '{
             score: .overall_score,
             total: .total_mutants,
             killed: .total_killed,
             survived: ([.modules[]? | .survived] | add // 0),
             timed_out: ([.modules[]? | .timed_out] | add // 0),
             compile_errors: ([.modules[]? | .compile_errors] | add // 0)
-          }')
+          }' mutate-json.txt)
 
           echo "json<<MUTATE_EOF" >> "$GITHUB_OUTPUT"
           echo "$summary" >> "$GITHUB_OUTPUT"
