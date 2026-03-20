@@ -235,16 +235,28 @@ jobs:
           script: |
             const checks = [];
             const inputs = ${{ toJSON(inputs) }};
-            const mapping = [
+            const isPR = '${{ github.event_name }}' === 'pull_request';
+            const isPush = '${{ github.event_name }}' === 'push';
+
+            // PR-only checks (already validated before merge)
+            const prOnly = [
               { name: 'Format',        command: 'fmt --check',  key: 'enable-fmt' },
               { name: 'Xref',          command: 'xref',         key: 'enable-xref' },
               { name: 'Lint',          command: 'lint',         key: 'enable-lint' },
               { name: 'Hank',          command: 'hank',         key: 'enable-hank' },
               { name: 'Sheldon',       command: 'spellcheck',   key: 'enable-sheldon' },
+            ];
+
+            // Main-only checks (artifacts, publish)
+            const mainOnly = [
               { name: 'Documentation', command: 'ex_doc',       key: 'enable-ex-doc' },
             ];
-            for (const c of mapping) {
-              if (inputs[c.key]) checks.push(c);
+
+            for (const c of prOnly) {
+              if (inputs[c.key] && isPR) checks.push(c);
+            }
+            for (const c of mainOnly) {
+              if (inputs[c.key] && isPush) checks.push(c);
             }
             core.setOutput('has-checks', checks.length > 0 ? 'true' : 'false');
             return checks;
@@ -276,7 +288,7 @@ jobs:
   dialyzer:
     name: Dialyzer
     needs: compile
-    if: ${{ inputs.enable-dialyzer }}
+    if: ${{ inputs.enable-dialyzer && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
@@ -303,7 +315,7 @@ jobs:
   elp-lint:
     name: ELP Lint
     needs: compile
-    if: ${{ inputs.enable-elp-lint }}
+    if: ${{ inputs.enable-elp-lint && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
@@ -365,7 +377,7 @@ jobs:
   elp-eqwalize:
     name: ELP eqWAlize
     needs: compile
-    if: ${{ inputs.enable-elp-eqwalize }}
+    if: ${{ inputs.enable-elp-eqwalize && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
@@ -498,10 +510,10 @@ jobs:
       - name: EUnit
         env:
           EUNIT_ARGS: ${{ inputs.eunit-args }}
-          COVER_FLAG: ${{ inputs.enable-coverage && '--cover' || '' }}
+          COVER_FLAG: ${{ inputs.enable-coverage && github.event_name == 'pull_request' && '--cover' || '' }}
         run: rebar3 eunit $EUNIT_ARGS $COVER_FLAG
       - name: Upload coverdata
-        if: ${{ inputs.enable-coverage }}
+        if: ${{ inputs.enable-coverage && github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverdata-eunit-otp${{ matrix.otp }}
@@ -541,10 +553,10 @@ jobs:
         env:
           CT_ARGS: ${{ inputs.ct-args }}
           CT_CONFIG: ${{ inputs.ct-config && format('--sys_config {0}', inputs.ct-config) || '' }}
-          COVER_FLAG: ${{ inputs.enable-coverage && '--cover' || '' }}
+          COVER_FLAG: ${{ inputs.enable-coverage && github.event_name == 'pull_request' && '--cover' || '' }}
         run: rebar3 ct $CT_ARGS $CT_CONFIG $COVER_FLAG
       - name: Upload coverdata
-        if: ${{ inputs.enable-coverage }}
+        if: ${{ inputs.enable-coverage && github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverdata-ct-otp${{ matrix.otp }}
@@ -553,7 +565,7 @@ jobs:
   coverage:
     name: Coverage
     needs: [eunit, ct]
-    if: ${{ always() && inputs.enable-coverage }}
+    if: ${{ always() && inputs.enable-coverage && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
@@ -684,7 +696,7 @@ jobs:
           new_count=$(echo "$new_vulns" | jq '.vulnerabilities | length')
           echo "new-count=$new_count" >> "$GITHUB_OUTPUT"
       - name: Upload SBOM
-        if: ${{ always() }}
+        if: ${{ always() && github.event_name == 'push' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
@@ -772,7 +784,8 @@ jobs:
         id: extract
         run: |
           if [ ! -f mutate-output.txt ]; then exit 0; fi
-          grep '^{"overall_score' mutate-output.txt | head -1 > mutate-json.txt
+          # Extract JSON from {"overall_score to EOF and join lines (handles unescaped newlines in strings)
+          sed -n '/^{"overall_score/,$p' mutate-output.txt | tr '\n' ' ' > mutate-json.txt
           if [ ! -s mutate-json.txt ]; then exit 0; fi
 
           summary=$(jq -c '{

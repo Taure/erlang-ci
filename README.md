@@ -51,6 +51,29 @@ compile ──────────► ├─ eunit ────────�
                     └───────────────────────────┘
 ```
 
+### PR vs main optimization
+
+Steps are automatically scoped to where they provide value. No configuration needed — the workflow detects the event type.
+
+| Step | PR | Main | Rationale |
+|------|:--:|:----:|-----------|
+| Compile | Yes | Yes | Catch merge-induced breakage |
+| EUnit / CT | Yes | Yes | Catch merge-induced breakage |
+| Audit | Yes | Yes | Advisories can appear anytime |
+| SBOM scan | Yes | Yes | Catch vulnerabilities early |
+| Format / Xref | Yes | — | Already validated in PR |
+| Dialyzer | Yes | — | Already validated in PR |
+| Lint / Hank / Sheldon | Yes | — | Already validated in PR |
+| ELP Lint / eqWAlize | Yes | — | Already validated in PR |
+| Coverage | Yes | — | Already validated in PR |
+| Mutation testing | Yes | — | Already PR-only (diff mode) |
+| Summary comment | Yes | — | PR context only |
+| Documentation (ex_doc) | — | Yes | Publish on merge |
+| SBOM artifact upload | — | Yes | Persist for releases |
+| Dependency submission | — | Yes | Update GitHub dep graph |
+
+### Step reference
+
 | Step | Default | Input | Requires |
 |------|---------|-------|----------|
 | Compile | always | — | — |
