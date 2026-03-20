@@ -621,7 +621,7 @@ jobs:
   sbom:
     name: SBOM
     needs: compile
-    if: ${{ inputs.enable-sbom && github.event_name == 'push' }}
+    if: ${{ inputs.enable-sbom }}
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
@@ -696,7 +696,7 @@ jobs:
           new_count=$(echo "$new_vulns" | jq '.vulnerabilities | length')
           echo "new-count=$new_count" >> "$GITHUB_OUTPUT"
       - name: Upload SBOM
-        if: ${{ always() }}
+        if: ${{ always() && github.event_name == 'push' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
