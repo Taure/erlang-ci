@@ -106,7 +106,7 @@ on:
         required: false
         default: false
       enable-sbom-scan:
-        description: 'Scan SBOM for vulnerabilities using Grype (requires enable-sbom)'
+        description: 'Scan SBOM for vulnerabilities using Trivy (requires enable-sbom)'
         type: boolean
         required: false
         default: false
@@ -784,7 +784,8 @@ jobs:
         id: extract
         run: |
           if [ ! -f mutate-output.txt ]; then exit 0; fi
-          grep '^{"overall_score' mutate-output.txt | head -1 > mutate-json.txt
+          # Extract JSON from {"overall_score to EOF and join lines (handles unescaped newlines in strings)
+          sed -n '/^{"overall_score/,$p' mutate-output.txt | tr '\n' ' ' > mutate-json.txt
           if [ ! -s mutate-json.txt ]; then exit 0; fi
 
           summary=$(jq -c '{

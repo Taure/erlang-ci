@@ -93,6 +93,10 @@ jobs:
           CHANGELOG: ${{ steps.changelog.outputs.content }}
           TAG: ${{ steps.resolve.outputs.next }}
         run: |
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG$"; then
+            echo "Tag $TAG already exists — skipping release"
+            exit 0
+          fi
           git tag "$TAG"
           git push origin "$TAG"
           gh release create "$TAG" \
