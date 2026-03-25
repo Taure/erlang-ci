@@ -58,7 +58,7 @@ runs:
       run: |
         if [ ! -f elp-lint-output.jsonl ]; then exit 0; fi
         summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '
-          [.[] | select(.path | test("^_build/") | not)] | {
+          [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
             errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
             warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
             total: length
@@ -88,7 +88,7 @@ runs:
       run: |
         if [ ! -f elp-eqwalize-output.jsonl ]; then exit 0; fi
         summary=$(cat elp-eqwalize-output.jsonl | grep '^\s*{' | jq -sc '
-          [.[] | select(.path | test("^_build/") | not)] | {
+          [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
             errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
             warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
             total: length
