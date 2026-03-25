@@ -207,7 +207,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         id: setup
         with:
           otp-version: ${{ inputs.otp-version }}
@@ -276,7 +276,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -296,21 +296,16 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Restore PLT cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: Taure/erlang-ci/dialyzer@v2
         with:
-          path: _build/default/*_plt*
-          key: erlang-ci-plt-${{ runner.os }}-otp-${{ inputs.otp-version }}-${{ hashFiles('rebar.lock') }}
-          restore-keys: |
-            erlang-ci-plt-${{ runner.os }}-otp-${{ inputs.otp-version }}-
-      - run: rebar3 dialyzer
+          otp-version: ${{ inputs.otp-version }}
 
   elp-lint:
     name: ELP Lint
@@ -320,59 +315,23 @@ jobs:
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
     outputs:
-      json: ${{ steps.extract.outputs.json }}
+      json: ${{ steps.elp.outputs.lint-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        id: setup
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Install ELP
-        env:
-          ELP_VERSION: ${{ inputs.elp-version }}
-        run: |
-          OTP_MAJOR=$(erl -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' -noshell)
-          case "$OTP_MAJOR" in
-            26) ELP_OTP="26.2" ;;
-            27) ELP_OTP="27.3" ;;
-            28) ELP_OTP="28" ;;
-            *) echo "::error::ELP does not provide binaries for OTP $OTP_MAJOR"; exit 1 ;;
-          esac
-          curl -fsSL "https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/elp-linux-x86_64-unknown-linux-gnu-otp-${ELP_OTP}.tar.gz" \
-            | tar -xz -C /usr/local/bin
-      - name: Compile
-        run: rebar3 compile
-      - name: ELP Lint
-        id: lint
-        run: |
-          set +e
-          elp lint --format json 2>&1 | tee elp-lint-output.jsonl
-          set -e
-      - name: Extract lint summary
-        id: extract
-        run: |
-          if [ ! -f elp-lint-output.jsonl ]; then exit 0; fi
-          # Count by severity — ELP --format json exits non-zero even for
-          # disabled/weak warnings, so we determine pass/fail from actual errors.
-          summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '{
-            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
-            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
-            total: length
-          }')
-          echo "json<<ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
-          echo "$summary" >> "$GITHUB_OUTPUT"
-          echo "ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
-          errors=$(echo "$summary" | jq '.errors')
-          if [ "$errors" -gt 0 ]; then
-            echo "::error::ELP lint found $errors error(s)"
-            exit 1
-          fi
+      - uses: Taure/erlang-ci/elp@v2
+        id: elp
+        with:
+          version: ${{ inputs.elp-version }}
+          mode: lint
 
   elp-eqwalize:
     name: ELP eqWAlize
@@ -382,57 +341,23 @@ jobs:
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
     outputs:
-      json: ${{ steps.extract.outputs.json }}
+      json: ${{ steps.elp.outputs.eqwalize-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
-        id: setup
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Install ELP
-        env:
-          ELP_VERSION: ${{ inputs.elp-version }}
-        run: |
-          OTP_MAJOR=$(erl -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' -noshell)
-          case "$OTP_MAJOR" in
-            26) ELP_OTP="26.2" ;;
-            27) ELP_OTP="27.3" ;;
-            28) ELP_OTP="28" ;;
-            *) echo "::error::ELP does not provide binaries for OTP $OTP_MAJOR"; exit 1 ;;
-          esac
-          curl -fsSL "https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/elp-linux-x86_64-unknown-linux-gnu-otp-${ELP_OTP}.tar.gz" \
-            | tar -xz -C /usr/local/bin
-      - name: Compile
-        run: rebar3 compile
-      - name: eqWAlize
-        id: eqwalize
-        run: |
-          set +e
-          elp eqwalize-all --format json 2>&1 | tee elp-eqwalize-output.jsonl
-          set -e
-      - name: Extract eqWAlize summary
-        id: extract
-        run: |
-          if [ ! -f elp-eqwalize-output.jsonl ]; then exit 0; fi
-          summary=$(cat elp-eqwalize-output.jsonl | grep '^\s*{' | jq -sc '{
-            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
-            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
-            total: length
-          }')
-          echo "json<<ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
-          echo "$summary" >> "$GITHUB_OUTPUT"
-          echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
-          errors=$(echo "$summary" | jq '.errors')
-          if [ "$errors" -gt 0 ]; then
-            echo "::error::ELP eqWAlize found $errors error(s)"
-            exit 1
-          fi
+      - uses: Taure/erlang-ci/elp@v2
+        id: elp
+        with:
+          version: ${{ inputs.elp-version }}
+          mode: eqwalize
 
   audit:
     name: Audit
@@ -447,35 +372,17 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Run audit
+      - uses: Taure/erlang-ci/audit@v2
         id: audit
-        env:
-          AUDIT_LEVEL: ${{ inputs.audit-level }}
-        run: |
-          output=$(rebar3 audit --format json --level "$AUDIT_LEVEL" 2>&1)
-          rc=$?
-          # When no vulns, rebar3_audit outputs human text regardless of format flag
-          # When vulns exist, JSON is written to stdout via io:put_chars
-          json_line=$(echo "$output" | grep '^\s*{' | head -1)
-          if [ -n "$json_line" ]; then
-            echo "json<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
-            echo "$json_line" >> "$GITHUB_OUTPUT"
-            echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
-          else
-            # No JSON means no vulnerabilities — build a synthetic response
-            dep_count=$(echo "$output" | grep -oP '\d+ dependencies' | grep -oP '\d+' || echo "0")
-            echo "json<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
-            echo "{\"vulnerabilities\":[],\"dependencies_scanned\":${dep_count}}" >> "$GITHUB_OUTPUT"
-            echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
-          fi
-          exit $rc
+        with:
+          level: ${{ inputs.audit-level }}
 
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}
@@ -492,7 +399,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -534,7 +441,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -575,7 +482,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -626,86 +533,25 @@ jobs:
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
     outputs:
-      scan-json: ${{ steps.scan-extract.outputs.json }}
-      ignored-json: ${{ steps.trivyignore.outputs.json }}
+      scan-json: ${{ steps.sbom.outputs.scan-json }}
+      ignored-json: ${{ steps.sbom.outputs.ignored-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Generate SBOM
-        run: rebar3 sbom --output bom.xml --force
-      - name: Generate .trivyignore from OTP advisories
-        if: ${{ inputs.enable-sbom-scan }}
-        id: trivyignore
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          curl -sL https://raw.githubusercontent.com/Taure/erlang-ci/v1/scripts/generate-trivyignore.sh | bash
-          if [ -f .trivyignore ]; then
-            # Extract ignored CVEs as JSON for the summary comment
-            ignored=$(grep -v '^#' .trivyignore | grep -v '^\s*$' | \
-              sed 's/ # /\t/' | \
-              jq -Rc 'split("\t") | {id: .[0], reason: .[1]}' | \
-              jq -sc '{ignored: .}')
-            echo "json<<IGNORE_EOF" >> "$GITHUB_OUTPUT"
-            echo "$ignored" >> "$GITHUB_OUTPUT"
-            echo "IGNORE_EOF" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Scan SBOM for vulnerabilities
-        if: ${{ inputs.enable-sbom-scan }}
-        id: trivy
-        continue-on-error: true
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # master
+      - uses: Taure/erlang-ci/sbom@v2
+        id: sbom
         with:
-          scan-type: sbom
-          scan-ref: bom.xml
-          format: json
-          output: trivy-results.json
-          severity: HIGH,CRITICAL
-          exit-code: '1'
-      - name: Extract and filter scan results
-        if: ${{ inputs.enable-sbom-scan }}
-        id: scan-extract
-        run: |
-          if [ ! -f trivy-results.json ]; then exit 0; fi
-
-          # Build list of ignored CVE IDs from .trivyignore
-          ignored_ids=""
-          if [ -f .trivyignore ]; then
-            ignored_ids=$(grep -v '^#' .trivyignore | grep -v '^\s*$' | awk '{print $1}' | jq -Rsc 'split("\n") | map(select(. != ""))')
-          else
-            ignored_ids='[]'
-          fi
-
-          # Extract all vulns, then filter out ignored ones for the "new" count
-          all_vulns=$(jq -c '{vulnerabilities: [.Results[]?.Vulnerabilities[]? | {id: .VulnerabilityID, severity: .Severity, package: .PkgName, version: .InstalledVersion, fixed_version: (.FixedVersion // ""), url: (.PrimaryURL // "")}]}' trivy-results.json)
-          new_vulns=$(echo "$all_vulns" | jq -c --argjson ignored "$ignored_ids" '{vulnerabilities: [.vulnerabilities[] | select(.id as $id | ($ignored | index($id)) | not)]}')
-
-          echo "json<<SCAN_EOF" >> "$GITHUB_OUTPUT"
-          echo "$new_vulns" >> "$GITHUB_OUTPUT"
-          echo "SCAN_EOF" >> "$GITHUB_OUTPUT"
-
-          # Count truly new vulnerabilities (not in ignore list)
-          new_count=$(echo "$new_vulns" | jq '.vulnerabilities | length')
-          echo "new-count=$new_count" >> "$GITHUB_OUTPUT"
-      - name: Upload SBOM
-        if: ${{ always() && github.event_name == 'push' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom
-          path: bom.xml
-      - name: Fail if new vulnerabilities found
-        if: ${{ steps.scan-extract.outputs.new-count > 0 }}
-        run: |
-          echo "Found ${{ steps.scan-extract.outputs.new-count }} vulnerabilities not in .trivyignore"
-          exit 1
+          scan: ${{ inputs.enable-sbom-scan && 'true' || 'false' }}
+          github-token: ${{ github.token }}
+          upload: ${{ github.event_name == 'push' && 'true' || 'false' }}
 
   dependency-submission:
     name: Dependency Submission
@@ -726,7 +572,7 @@ jobs:
     if: ${{ inputs.enable-mutate && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     outputs:
-      json: ${{ steps.extract.outputs.json }}
+      json: ${{ steps.mutate.outputs.json }}
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
     steps:
@@ -734,7 +580,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Taure/erlang-ci@v1
+      - uses: Taure/erlang-ci@v2
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -751,58 +597,14 @@ jobs:
         env:
           PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
         run: eval "$PRE_TEST_COMMAND"
-      - name: Run mutation testing
+      - uses: Taure/erlang-ci/mutate@v2
         id: mutate
-        env:
-          MUTATE_MIN_SCORE: ${{ inputs.mutate-min-score }}
-          MUTATE_ARGS: ${{ inputs.mutate-args }}
-          MUTATE_FRAMEWORK: ${{ inputs.mutate-test-framework }}
-          DIFF_BASE: ${{ inputs.mutate-diff && github.base_ref && format('--diff origin/{0}', github.base_ref) || '' }}
-        run: |
-          set +e
-          args="--format json --test-framework $MUTATE_FRAMEWORK"
-          if [ -n "$MUTATE_MIN_SCORE" ]; then
-            score="$MUTATE_MIN_SCORE"
-            # rebar3_mutate expects a float — append .0 if no decimal point
-            case "$score" in
-              *.*) ;;
-              *) score="${score}.0" ;;
-            esac
-            args="$args --min-score $score"
-          fi
-          if [ -n "$DIFF_BASE" ]; then
-            args="$args $DIFF_BASE"
-          fi
-          if [ -n "$MUTATE_ARGS" ]; then
-            args="$args $MUTATE_ARGS"
-          fi
-          rebar3 mutate $args 2>&1 | tee mutate-output.txt
-          echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-          set -e
-      - name: Extract mutation summary
-        if: ${{ always() && steps.mutate.outcome != 'cancelled' }}
-        id: extract
-        run: |
-          if [ ! -f mutate-output.txt ]; then exit 0; fi
-          # Extract JSON from {"overall_score to EOF and join lines (handles unescaped newlines in strings)
-          sed -n '/^{"overall_score/,$p' mutate-output.txt | tr '\n' ' ' > mutate-json.txt
-          if [ ! -s mutate-json.txt ]; then exit 0; fi
-
-          summary=$(jq -c '{
-            score: .overall_score,
-            total: .total_mutants,
-            killed: .total_killed,
-            survived: ([.modules[]? | .survived] | add // 0),
-            timed_out: ([.modules[]? | .timed_out] | add // 0),
-            compile_errors: ([.modules[]? | .compile_errors] | add // 0)
-          }' mutate-json.txt)
-
-          echo "json<<MUTATE_EOF" >> "$GITHUB_OUTPUT"
-          echo "$summary" >> "$GITHUB_OUTPUT"
-          echo "MUTATE_EOF" >> "$GITHUB_OUTPUT"
-      - name: Check mutation testing result
-        if: ${{ always() && steps.mutate.outputs.exit-code }}
-        run: exit ${{ steps.mutate.outputs.exit-code }}
+        with:
+          min-score: ${{ inputs.mutate-min-score }}
+          test-framework: ${{ inputs.mutate-test-framework }}
+          diff: ${{ inputs.mutate-diff && 'true' || 'false' }}
+          diff-base: ${{ inputs.mutate-diff && github.base_ref && format('origin/{0}', github.base_ref) || '' }}
+          args: ${{ inputs.mutate-args }}
 
   summary:
     name: Summary
@@ -815,7 +617,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: Taure/erlang-ci
-          ref: v1
+          ref: v2
           sparse-checkout: scripts
           persist-credentials: false
       - name: Post summary comment

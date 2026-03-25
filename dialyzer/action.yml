@@ -1,0 +1,26 @@
+name: 'Erlang Dialyzer'
+description: 'Run rebar3 dialyzer with PLT caching'
+author: 'novaframework'
+
+inputs:
+  otp-version:
+    description: 'OTP version (used for cache key)'
+    required: true
+  cache-key-prefix:
+    description: 'Custom cache key prefix'
+    required: false
+    default: 'erlang-ci'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Restore PLT cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: _build/default/*_plt*
+        key: ${{ inputs.cache-key-prefix }}-plt-${{ runner.os }}-otp-${{ inputs.otp-version }}-${{ hashFiles('rebar.lock') }}
+        restore-keys: |
+          ${{ inputs.cache-key-prefix }}-plt-${{ runner.os }}-otp-${{ inputs.otp-version }}-
+    - name: Dialyzer
+      shell: bash
+      run: rebar3 dialyzer

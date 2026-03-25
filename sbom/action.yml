@@ -1,0 +1,114 @@
+name: 'Erlang SBOM'
+description: 'Generate CycloneDX SBOM and optionally scan for vulnerabilities with Trivy'
+author: 'novaframework'
+
+inputs:
+  scan:
+    description: 'Scan SBOM for vulnerabilities using Trivy'
+    required: false
+    default: 'false'
+  severity:
+    description: 'Trivy severity filter'
+    required: false
+    default: 'HIGH,CRITICAL'
+  trivyignore:
+    description: 'Auto-generate .trivyignore from OTP advisories'
+    required: false
+    default: 'true'
+  upload:
+    description: 'Upload SBOM as artifact'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'GitHub token for querying advisories (required for trivyignore)'
+    required: false
+    default: ''
+
+outputs:
+  scan-json:
+    description: 'Filtered vulnerability scan results JSON'
+    value: ${{ steps.scan-extract.outputs.json }}
+  ignored-json:
+    description: 'JSON of auto-ignored CVEs from OTP advisories'
+    value: ${{ steps.trivyignore.outputs.json }}
+  new-count:
+    description: 'Number of new (non-ignored) vulnerabilities'
+    value: ${{ steps.scan-extract.outputs.new-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate SBOM
+      shell: bash
+      run: rebar3 sbom --output bom.xml --force
+
+    - name: Generate .trivyignore from OTP advisories
+      if: ${{ inputs.scan == 'true' && inputs.trivyignore == 'true' && inputs.github-token != '' }}
+      id: trivyignore
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        bash "${{ github.action_path }}/../scripts/generate-trivyignore.sh"
+        if [ -f .trivyignore ]; then
+          ignored=$(grep -v '^#' .trivyignore | grep -v '^\s*$' | \
+            sed 's/ # /\t/' | \
+            jq -Rc 'split("\t") | {id: .[0], reason: .[1]}' | \
+            jq -sc '{ignored: .}')
+          echo "json<<IGNORE_EOF" >> "$GITHUB_OUTPUT"
+          echo "$ignored" >> "$GITHUB_OUTPUT"
+          echo "IGNORE_EOF" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Scan SBOM for vulnerabilities
+      if: ${{ inputs.scan == 'true' }}
+      id: trivy
+      continue-on-error: true
+      uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # master
+      with:
+        scan-type: sbom
+        scan-ref: bom.xml
+        format: json
+        output: trivy-results.json
+        severity: ${{ inputs.severity }}
+        exit-code: '1'
+
+    - name: Extract and filter scan results
+      if: ${{ inputs.scan == 'true' }}
+      id: scan-extract
+      shell: bash
+      run: |
+        if [ ! -f trivy-results.json ]; then exit 0; fi
+
+        # Build list of ignored CVE IDs from .trivyignore
+        ignored_ids=""
+        if [ -f .trivyignore ]; then
+          ignored_ids=$(grep -v '^#' .trivyignore | grep -v '^\s*$' | awk '{print $1}' | jq -Rsc 'split("\n") | map(select(. != ""))')
+        else
+          ignored_ids='[]'
+        fi
+
+        # Extract all vulns, then filter out ignored ones
+        all_vulns=$(jq -c '{vulnerabilities: [.Results[]?.Vulnerabilities[]? | {id: .VulnerabilityID, severity: .Severity, package: .PkgName, version: .InstalledVersion, fixed_version: (.FixedVersion // ""), url: (.PrimaryURL // "")}]}' trivy-results.json)
+        new_vulns=$(echo "$all_vulns" | jq -c --argjson ignored "$ignored_ids" '{vulnerabilities: [.vulnerabilities[] | select(.id as $id | ($ignored | index($id)) | not)]}')
+
+        echo "json<<SCAN_EOF" >> "$GITHUB_OUTPUT"
+        echo "$new_vulns" >> "$GITHUB_OUTPUT"
+        echo "SCAN_EOF" >> "$GITHUB_OUTPUT"
+
+        new_count=$(echo "$new_vulns" | jq '.vulnerabilities | length')
+        echo "new-count=$new_count" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SBOM
+      if: ${{ inputs.upload == 'true' }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: sbom
+        path: bom.xml
+
+    - name: Fail if new vulnerabilities found
+      if: ${{ inputs.scan == 'true' && steps.scan-extract.outputs.new-count > 0 }}
+      shell: bash
+      run: |
+        echo "Found ${{ steps.scan-extract.outputs.new-count }} vulnerabilities not in .trivyignore"
+        exit 1
