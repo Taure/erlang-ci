@@ -48,7 +48,7 @@ runs:
       shell: bash
       run: |
         set +e
-        elp lint --format json 2>&1 | tee elp-lint-output.jsonl
+        elp lint --format json > elp-lint-output.jsonl
         set -e
 
     - name: Extract lint summary
@@ -78,7 +78,7 @@ runs:
       shell: bash
       run: |
         set +e
-        elp eqwalize-all --format json 2>&1 | tee elp-eqwalize-output.jsonl
+        elp eqwalize-all --format json > elp-eqwalize-output.jsonl
         set -e
 
     - name: Extract eqWAlize summary
