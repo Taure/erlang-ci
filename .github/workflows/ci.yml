@@ -207,7 +207,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         id: setup
         with:
           otp-version: ${{ inputs.otp-version }}
@@ -276,7 +276,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -296,14 +296,14 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - uses: Taure/erlang-ci/dialyzer@v2
+      - uses: Taure/erlang-ci/dialyzer@main
         with:
           otp-version: ${{ inputs.otp-version }}
 
@@ -320,14 +320,14 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - uses: Taure/erlang-ci/elp@v2
+      - uses: Taure/erlang-ci/elp@main
         id: elp
         with:
           version: ${{ inputs.elp-version }}
@@ -346,14 +346,14 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - uses: Taure/erlang-ci/elp@v2
+      - uses: Taure/erlang-ci/elp@main
         id: elp
         with:
           version: ${{ inputs.elp-version }}
@@ -372,14 +372,14 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - uses: Taure/erlang-ci/audit@v2
+      - uses: Taure/erlang-ci/audit@main
         id: audit
         with:
           level: ${{ inputs.audit-level }}
@@ -399,7 +399,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -441,7 +441,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -482,7 +482,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -539,14 +539,14 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - uses: Taure/erlang-ci/sbom@v2
+      - uses: Taure/erlang-ci/sbom@main
         id: sbom
         with:
           scan: ${{ inputs.enable-sbom-scan && 'true' || 'false' }}
@@ -580,7 +580,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Taure/erlang-ci@v2
+      - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
           rebar3-version: ${{ inputs.rebar3-version }}
@@ -597,7 +597,7 @@ jobs:
         env:
           PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
         run: eval "$PRE_TEST_COMMAND"
-      - uses: Taure/erlang-ci/mutate@v2
+      - uses: Taure/erlang-ci/mutate@main
         id: mutate
         with:
           min-score: ${{ inputs.mutate-min-score }}
@@ -617,7 +617,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: Taure/erlang-ci
-          ref: v2
+          ref: main
           sparse-checkout: scripts
           persist-credentials: false
       - name: Post summary comment
