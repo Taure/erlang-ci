@@ -3,5 +3,10 @@ rules:
     config:
       policies:
         Taure/erlang-ci: ref-pin
+        Taure/erlang-ci/dialyzer: ref-pin
+        Taure/erlang-ci/elp: ref-pin
+        Taure/erlang-ci/audit: ref-pin
+        Taure/erlang-ci/sbom: ref-pin
+        Taure/erlang-ci/mutate: ref-pin
   secrets-outside-env:
     disable: true
