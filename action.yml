@@ -90,6 +90,11 @@ runs:
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-
 
-    - name: Clean stale beam temp files
+    - name: Clean stale compile artifacts
       shell: bash
-      run: find _build -name "*.bea#" -delete 2>/dev/null || true
+      run: |
+        find _build -name "*.bea#" -delete 2>/dev/null || true
+        # Remove project app build dirs (not deps) to avoid parse transform issues
+        # when cached _build has stale src symlinks without matching ebin
+        APP_NAME=$(basename "$PWD")
+        rm -rf "_build/default/lib/$APP_NAME/ebin" 2>/dev/null || true
