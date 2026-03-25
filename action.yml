@@ -94,7 +94,6 @@ runs:
       shell: bash
       run: |
         find _build -name "*.bea#" -delete 2>/dev/null || true
-        # Remove project app build dirs (not deps) to avoid parse transform issues
-        # when cached _build has stale src symlinks without matching ebin
-        APP_NAME=$(basename "$PWD")
-        rm -rf "_build/default/lib/$APP_NAME" 2>/dev/null || true
+        # Clean project app compile artifacts (preserves dep cache)
+        # Prevents parse transform .bea# failures with stale cached state
+        rebar3 clean 2>/dev/null || true

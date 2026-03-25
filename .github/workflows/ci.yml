@@ -215,8 +215,6 @@ jobs:
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Clean project app
-        run: rebar3 clean -a
       - name: Compile
         env:
           COMPILE_ARGS: ${{ inputs.rebar3-compile-args }}
