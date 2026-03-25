@@ -56,13 +56,17 @@ runs:
       id: lint-extract
       shell: bash
       run: |
-        if [ ! -f elp-lint-output.jsonl ]; then exit 0; fi
-        summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '
-          [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
-            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
-            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
-            total: length
-          }')
+        if [ ! -f elp-lint-output.jsonl ] || [ ! -s elp-lint-output.jsonl ]; then
+          summary='{"errors":0,"warnings":0,"total":0}'
+        else
+          summary=$(grep '^\s*{' elp-lint-output.jsonl | jq -sc '
+            [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
+              errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+              warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+              total: length
+            }')
+          summary=${summary:-'{"errors":0,"warnings":0,"total":0}'}
+        fi
         echo "json<<ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
         echo "$summary" >> "$GITHUB_OUTPUT"
         echo "ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
@@ -86,13 +90,17 @@ runs:
       id: eqwalize-extract
       shell: bash
       run: |
-        if [ ! -f elp-eqwalize-output.jsonl ]; then exit 0; fi
-        summary=$(cat elp-eqwalize-output.jsonl | grep '^\s*{' | jq -sc '
-          [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
-            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
-            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
-            total: length
-          }')
+        if [ ! -f elp-eqwalize-output.jsonl ] || [ ! -s elp-eqwalize-output.jsonl ]; then
+          summary='{"errors":0,"warnings":0,"total":0}'
+        else
+          summary=$(grep '^\s*{' elp-eqwalize-output.jsonl | jq -sc '
+            [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
+              errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+              warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+              total: length
+            }')
+          summary=${summary:-'{"errors":0,"warnings":0,"total":0}'}
+        fi
         echo "json<<ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
         echo "$summary" >> "$GITHUB_OUTPUT"
         echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
