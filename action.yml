@@ -89,3 +89,7 @@ runs:
         restore-keys: |
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-
+
+    - name: Clean stale beam temp files
+      shell: bash
+      run: find _build -name "*.bea#" -delete 2>/dev/null || true

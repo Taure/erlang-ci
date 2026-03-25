@@ -215,8 +215,6 @@ jobs:
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - name: Clean stale beam temp files
-        run: find _build -name "*.bea#" -delete 2>/dev/null || true
       - name: Compile
         env:
           COMPILE_ARGS: ${{ inputs.rebar3-compile-args }}
