@@ -34,5 +34,5 @@ commit_parsers = [
     { message = "^ci", skip = true },
 ]
 protect_breaking_commits = false
-tag_pattern = "v[0-9].*"
+tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+"
 sort_commits = "oldest"

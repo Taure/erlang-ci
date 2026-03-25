@@ -9,7 +9,7 @@ A standardized CI/CD pipeline for Erlang/OTP projects.
 3. **Standalone composite actions** — use individual tools (dialyzer, ELP, audit, SBOM, mutate) independently
 4. **Setup action** — just setup + caching, bring your own jobs
 
-> **Security:** All release tags are immutable (protected by repository rulesets). Pin to exact semver versions (e.g. `@v1.14.0`). Floating major tags (`@v1`, `@v2`) are not used.
+> **Security:** All release tags are immutable (protected by repository rulesets). Pin to exact semver versions (e.g. `@v2.0.0`). Floating major tags (`@v1`, `@v2`) are not used.
 
 ## Quick start
 
@@ -25,7 +25,7 @@ on:
 
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
 ```
@@ -120,14 +120,14 @@ on:
 
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
 
   release:
     needs: ci
     if: github.event_name == 'push'
-    uses: Taure/erlang-ci/.github/workflows/release.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.0.0
     permissions:
       contents: write
     secrets: inherit
@@ -149,7 +149,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
 ```
@@ -161,7 +161,7 @@ Tests run on all OTP versions. Dialyzer, xref, and fmt run on the primary versio
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       otp-matrix: '["27", "28"]'
@@ -174,7 +174,7 @@ When `postgres: true` is set, eunit, CT, and mutation testing jobs get a Postgre
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       enable-ct: true
@@ -188,7 +188,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       enable-ct: true
@@ -202,7 +202,7 @@ Kafka runs in KRaft mode (no ZooKeeper) with built-in health checks. It is avail
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       enable-ct: true
@@ -217,7 +217,7 @@ Mutation testing verifies your tests can detect real bugs by introducing small c
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       enable-mutate: true
@@ -231,7 +231,7 @@ Set `mutate-min-score` to fail the build if the mutation score drops below a thr
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     permissions:
       contents: write
       pull-requests: write
@@ -256,7 +256,7 @@ jobs:
   release:
     needs: ci
     if: github.event_name == 'push'
-    uses: Taure/erlang-ci/.github/workflows/release.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.0.0
     permissions:
       contents: write
     secrets: inherit
@@ -285,7 +285,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     permissions:
       contents: write
       pull-requests: write
@@ -317,7 +317,7 @@ If your project has a `.tool-versions` file, it will be used automatically — n
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
 ```
 
 You can also point to a specific file explicitly:
@@ -325,7 +325,7 @@ You can also point to a specific file explicitly:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       version-file: 'mise.toml'
 ```
@@ -348,14 +348,14 @@ Individual tools are available as composite actions. Each assumes you've already
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Taure/erlang-ci@v1.14.0
+  - uses: Taure/erlang-ci@v2.0.0
     with:
       otp-version: '28'
   - run: rebar3 compile
-  - uses: Taure/erlang-ci/dialyzer@v1.14.0
+  - uses: Taure/erlang-ci/dialyzer@v2.0.0
     with:
       otp-version: '28'
-  - uses: Taure/erlang-ci/elp@v1.14.0
+  - uses: Taure/erlang-ci/elp@v2.0.0
     with:
       mode: both
 ```
@@ -365,15 +365,15 @@ steps:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Taure/erlang-ci@v1.14.0
+  - uses: Taure/erlang-ci@v2.0.0
     with:
       otp-version: '28'
   - run: rebar3 compile
-  - uses: Taure/erlang-ci/audit@v1.14.0
+  - uses: Taure/erlang-ci/audit@v2.0.0
     id: audit
     with:
       level: high
-  - uses: Taure/erlang-ci/sbom@v1.14.0
+  - uses: Taure/erlang-ci/sbom@v2.0.0
     with:
       scan: 'true'
       github-token: ${{ github.token }}
@@ -388,7 +388,7 @@ If you prefer writing your own workflow but want the setup and caching handled:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Taure/erlang-ci@v1.14.0
+  - uses: Taure/erlang-ci@v2.0.0
     with:
       otp-version: '28'
   - run: rebar3 compile
@@ -415,7 +415,7 @@ ci ──► black-box ──► release
 ```yaml
 jobs:
   ci:                              # 1. runs first (no needs)
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
 
@@ -424,7 +424,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1.14.0
+      - uses: Taure/erlang-ci@v2.0.0
         with:
           otp-version: '28'
       - run: rebar3 release
@@ -433,7 +433,7 @@ jobs:
   release:                         # 3. runs after black-box passes, only on merge
     needs: black-box
     if: github.event_name == 'push'
-    uses: Taure/erlang-ci/.github/workflows/release.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.0.0
     permissions:
       contents: write
 ```
@@ -449,7 +449,7 @@ start ─┤               ├─► deploy
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
 
@@ -483,7 +483,7 @@ on:
 
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     permissions:
       contents: write
       pull-requests: write
@@ -498,7 +498,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1.14.0
+      - uses: Taure/erlang-ci@v2.0.0
         with:
           otp-version: '28'
       - run: rebar3 release
@@ -516,7 +516,7 @@ jobs:
   release:
     needs: deploy-staging
     if: github.event_name == 'push'
-    uses: Taure/erlang-ci/.github/workflows/release.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.0.0
     permissions:
       contents: write
 ```
@@ -550,7 +550,7 @@ on:
 
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     permissions:
       contents: write
       pull-requests: write
@@ -598,7 +598,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Taure/erlang-ci@v1.14.0
+      - uses: Taure/erlang-ci@v2.0.0
         with:
           otp-version: '28'
       - run: rebar3 compile
@@ -666,7 +666,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       enable-ct: true
@@ -681,7 +681,7 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     with:
       otp-version: '28'
       enable-ct: true
@@ -734,7 +734,7 @@ For projects with private rebar3 deps (`{dep, {git, "git@github.com:org/repo.git
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     secrets:
       ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
     with:
@@ -746,7 +746,7 @@ The composite action accepts `ssh-key` as an input:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Taure/erlang-ci@v1.14.0
+  - uses: Taure/erlang-ci@v2.0.0
     with:
       otp-version: '28'
       ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
@@ -758,7 +758,7 @@ For private Hex packages, pass `hex-api-key`:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     secrets:
       hex-api-key: ${{ secrets.HEX_API_KEY }}
     with:
@@ -770,7 +770,7 @@ Both secrets can be combined:
 ```yaml
 jobs:
   ci:
-    uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
     secrets:
       ssh-key: ${{ secrets.PRIVATE_DEPS_SSH_KEY }}
       hex-api-key: ${{ secrets.HEX_API_KEY }}
@@ -877,7 +877,7 @@ Instead of copying 50-120 lines of boilerplate YAML into every Erlang project:
 # repeated in every repo, drifting apart over time
 
 # after:
-uses: Taure/erlang-ci/.github/workflows/ci.yml@v1.14.0
+uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.0.0
 with:
   otp-version: '28'
 ```
