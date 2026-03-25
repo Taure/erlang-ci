@@ -57,11 +57,12 @@ runs:
       shell: bash
       run: |
         if [ ! -f elp-lint-output.jsonl ]; then exit 0; fi
-        summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '{
-          errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
-          warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
-          total: length
-        }')
+        summary=$(cat elp-lint-output.jsonl | grep '^\s*{' | jq -sc '
+          [.[] | select(.path | test("^_build/") | not)] | {
+            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+            total: length
+          }')
         echo "json<<ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
         echo "$summary" >> "$GITHUB_OUTPUT"
         echo "ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
@@ -86,11 +87,12 @@ runs:
       shell: bash
       run: |
         if [ ! -f elp-eqwalize-output.jsonl ]; then exit 0; fi
-        summary=$(cat elp-eqwalize-output.jsonl | grep '^\s*{' | jq -sc '{
-          errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
-          warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
-          total: length
-        }')
+        summary=$(cat elp-eqwalize-output.jsonl | grep '^\s*{' | jq -sc '
+          [.[] | select(.path | test("^_build/") | not)] | {
+            errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+            warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+            total: length
+          }')
         echo "json<<ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
         echo "$summary" >> "$GITHUB_OUTPUT"
         echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
