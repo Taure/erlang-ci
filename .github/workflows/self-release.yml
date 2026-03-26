@@ -9,5 +9,3 @@ jobs:
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
-    with:
-      floating-major-tag: true

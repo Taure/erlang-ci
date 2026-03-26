@@ -89,3 +89,11 @@ runs:
         restore-keys: |
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-
+
+    - name: Clean stale compile artifacts
+      shell: bash
+      run: |
+        find _build -name "*.bea#" -delete 2>/dev/null || true
+        # Clean project app compile artifacts (preserves dep cache)
+        # Prevents parse transform .bea# failures with stale cached state
+        rebar3 clean 2>/dev/null || true

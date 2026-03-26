@@ -1,0 +1,111 @@
+name: 'Erlang Language Platform'
+description: 'Install ELP and run lint and/or eqWAlize type checking'
+author: 'novaframework'
+
+inputs:
+  version:
+    description: 'ELP release tag (e.g. "2026-02-27")'
+    required: false
+    default: '2026-02-27'
+  mode:
+    description: 'Which checks to run: lint, eqwalize, or both'
+    required: false
+    default: 'both'
+
+outputs:
+  lint-json:
+    description: 'JSON summary of lint diagnostics {errors, warnings, total}'
+    value: ${{ steps.lint-extract.outputs.json }}
+  eqwalize-json:
+    description: 'JSON summary of eqWAlize diagnostics {errors, warnings, total}'
+    value: ${{ steps.eqwalize-extract.outputs.json }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install ELP
+      shell: bash
+      env:
+        ELP_VERSION: ${{ inputs.version }}
+      run: |
+        OTP_MAJOR=$(erl -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' -noshell)
+        case "$OTP_MAJOR" in
+          26) ELP_OTP="26.2" ;;
+          27) ELP_OTP="27.3" ;;
+          28) ELP_OTP="28" ;;
+          *) echo "::error::ELP does not provide binaries for OTP $OTP_MAJOR"; exit 1 ;;
+        esac
+        curl -fsSL "https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/elp-linux-x86_64-unknown-linux-gnu-otp-${ELP_OTP}.tar.gz" \
+          | tar -xz -C /usr/local/bin
+
+    - name: Compile
+      shell: bash
+      run: rebar3 compile
+
+    - name: ELP Lint
+      if: ${{ inputs.mode == 'lint' || inputs.mode == 'both' }}
+      id: lint
+      shell: bash
+      run: |
+        set +e
+        elp lint --format json > elp-lint-output.jsonl
+        set -e
+
+    - name: Extract lint summary
+      if: ${{ inputs.mode == 'lint' || inputs.mode == 'both' }}
+      id: lint-extract
+      shell: bash
+      run: |
+        if [ ! -f elp-lint-output.jsonl ] || [ ! -s elp-lint-output.jsonl ]; then
+          summary='{"errors":0,"warnings":0,"total":0}'
+        else
+          summary=$(grep '^\s*{' elp-lint-output.jsonl | jq -sc '
+            [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
+              errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+              warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+              total: length
+            }')
+          summary=${summary:-'{"errors":0,"warnings":0,"total":0}'}
+        fi
+        echo "json<<ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
+        echo "$summary" >> "$GITHUB_OUTPUT"
+        echo "ELP_LINT_EOF" >> "$GITHUB_OUTPUT"
+        errors=$(echo "$summary" | jq '.errors')
+        if [ "$errors" -gt 0 ]; then
+          echo "::error::ELP lint found $errors error(s)"
+          exit 1
+        fi
+
+    - name: eqWAlize
+      if: ${{ inputs.mode == 'eqwalize' || inputs.mode == 'both' }}
+      id: eqwalize
+      shell: bash
+      run: |
+        set +e
+        elp eqwalize-all --format json > elp-eqwalize-output.jsonl
+        set -e
+
+    - name: Extract eqWAlize summary
+      if: ${{ inputs.mode == 'eqwalize' || inputs.mode == 'both' }}
+      id: eqwalize-extract
+      shell: bash
+      run: |
+        if [ ! -f elp-eqwalize-output.jsonl ] || [ ! -s elp-eqwalize-output.jsonl ]; then
+          summary='{"errors":0,"warnings":0,"total":0}'
+        else
+          summary=$(grep '^\s*{' elp-eqwalize-output.jsonl | jq -sc '
+            [.[] | select((.path // "") | test("(^|/)_build/") | not)] | {
+              errors: [.[] | select(.severity == "error" or .severity == "Error")] | length,
+              warnings: [.[] | select(.severity == "warning" or .severity == "Warning")] | length,
+              total: length
+            }')
+          summary=${summary:-'{"errors":0,"warnings":0,"total":0}'}
+        fi
+        echo "json<<ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
+        echo "$summary" >> "$GITHUB_OUTPUT"
+        echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
+        errors=$(echo "$summary" | jq '.errors')
+        if [ "$errors" -gt 0 ]; then
+          echo "::error::ELP eqWAlize found $errors error(s)"
+          exit 1
+        fi

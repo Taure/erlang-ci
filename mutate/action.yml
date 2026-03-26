@@ -1,0 +1,89 @@
+name: 'Erlang Mutation Testing'
+description: 'Run rebar3 mutate with JSON output and score thresholds'
+author: 'novaframework'
+
+inputs:
+  min-score:
+    description: 'Minimum mutation score (0-100), fail if below'
+    required: false
+    default: ''
+  test-framework:
+    description: 'Test framework (eunit or ct)'
+    required: false
+    default: 'eunit'
+  diff:
+    description: 'Only mutate lines changed in PR (requires rebar3_mutate >= 0.4.0)'
+    required: false
+    default: 'false'
+  diff-base:
+    description: 'Base ref for diff mode (e.g. origin/main)'
+    required: false
+    default: ''
+  args:
+    description: 'Extra args for rebar3 mutate'
+    required: false
+    default: ''
+
+outputs:
+  json:
+    description: 'Mutation testing summary {score, total, killed, survived, timed_out, compile_errors}'
+    value: ${{ steps.extract.outputs.json }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run mutation testing
+      id: mutate
+      shell: bash
+      env:
+        MUTATE_MIN_SCORE: ${{ inputs.min-score }}
+        MUTATE_ARGS: ${{ inputs.args }}
+        MUTATE_FRAMEWORK: ${{ inputs.test-framework }}
+        DIFF_FLAG: ${{ inputs.diff == 'true' && inputs.diff-base != '' && format('--diff {0}', inputs.diff-base) || '' }}
+      run: |
+        set +e
+        args="--format json --test-framework $MUTATE_FRAMEWORK"
+        if [ -n "$MUTATE_MIN_SCORE" ]; then
+          score="$MUTATE_MIN_SCORE"
+          case "$score" in
+            *.*) ;;
+            *) score="${score}.0" ;;
+          esac
+          args="$args --min-score $score"
+        fi
+        if [ -n "$DIFF_FLAG" ]; then
+          args="$args $DIFF_FLAG"
+        fi
+        if [ -n "$MUTATE_ARGS" ]; then
+          args="$args $MUTATE_ARGS"
+        fi
+        rebar3 mutate $args 2>&1 | tee mutate-output.txt
+        echo "exit-code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        set -e
+
+    - name: Extract mutation summary
+      if: ${{ always() && steps.mutate.outcome != 'cancelled' }}
+      id: extract
+      shell: bash
+      run: |
+        if [ ! -f mutate-output.txt ]; then exit 0; fi
+        sed -n '/^{"overall_score/,$p' mutate-output.txt | tr '\n' ' ' > mutate-json.txt
+        if [ ! -s mutate-json.txt ]; then exit 0; fi
+
+        summary=$(jq -c '{
+          score: .overall_score,
+          total: .total_mutants,
+          killed: .total_killed,
+          survived: ([.modules[]? | .survived] | add // 0),
+          timed_out: ([.modules[]? | .timed_out] | add // 0),
+          compile_errors: ([.modules[]? | .compile_errors] | add // 0)
+        }' mutate-json.txt)
+
+        echo "json<<MUTATE_EOF" >> "$GITHUB_OUTPUT"
+        echo "$summary" >> "$GITHUB_OUTPUT"
+        echo "MUTATE_EOF" >> "$GITHUB_OUTPUT"
+
+    - name: Check mutation testing result
+      if: ${{ always() && steps.mutate.outputs.exit-code }}
+      shell: bash
+      run: exit ${{ steps.mutate.outputs.exit-code }}
