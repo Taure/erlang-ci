@@ -366,6 +366,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       json: ${{ steps.audit.outputs.json }}
     steps:
