@@ -22,17 +22,4 @@ runs:
       env:
         AUDIT_LEVEL: ${{ inputs.level }}
       run: |
-        output=$(rebar3 audit --format json --level "$AUDIT_LEVEL" 2>&1) && rc=0 || rc=$?
-        echo "$output"
-        json_line=$(echo "$output" | grep '^\s*{' | head -1)
-        if [ -n "$json_line" ]; then
-          echo "json<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
-          echo "$json_line" >> "$GITHUB_OUTPUT"
-          echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
-        else
-          dep_count=$(echo "$output" | grep -oP '\d+ dependencies' | grep -oP '\d+' || echo "0")
-          echo "json<<AUDIT_EOF" >> "$GITHUB_OUTPUT"
-          echo "{\"vulnerabilities\":[],\"dependencies_scanned\":${dep_count}}" >> "$GITHUB_OUTPUT"
-          echo "AUDIT_EOF" >> "$GITHUB_OUTPUT"
-        fi
-        exit $rc
+        rebar3 audit --level "$AUDIT_LEVEL"
