@@ -644,6 +644,7 @@ jobs:
 | `enable-ex-doc` | `false` | Run `rebar3 ex_doc` |
 | `enable-audit` | `false` | Run `rebar3 audit` (dep vulnerability scanning) |
 | `audit-level` | `low` | Minimum severity to fail on (`critical`, `high`, `medium`, `low`) |
+| `audit-ignores` | — | GHSA IDs to skip (space- or comma-separated). For unpatched advisories that do not apply; document each in SECURITY.md. |
 | `enable-coverage` | `false` | Coverage via covertool (reported in PR summary) |
 | `enable-sbom` | `false` | Generate CycloneDX SBOM via `rebar3 sbom` |
 | `enable-sbom-scan` | `false` | Scan SBOM for vulnerabilities using Trivy (requires `enable-sbom`) |
@@ -810,6 +811,14 @@ The badge color reflects coverage level: green (90%+), yellow (70%+), orange (50
 Each vulnerability includes an expandable details section with the full description and vulnerable version range.
 
 The `audit-level` input controls the minimum severity that causes the job to fail (default: `low` — all vulnerabilities fail the build). Set to `high` or `critical` to allow lower-severity issues to pass.
+
+The `audit-ignores` input lists GHSA IDs to skip. Use it sparingly, only for advisories that have no upstream patch and that genuinely do not apply to your code (e.g. a vulnerable function your project never calls). Each entry should be documented in `SECURITY.md` or an audit report with the justification.
+
+```yaml
+with:
+  enable-audit: true
+  audit-ignores: 'GHSA-g2wm-735q-3f56 GHSA-xxxx-yyyy-zzzz'
+```
 
 ### SBOM Scan (`enable-sbom-scan`)
 

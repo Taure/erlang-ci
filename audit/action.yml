@@ -7,6 +7,10 @@ inputs:
     description: 'Minimum severity to fail on (critical, high, medium, low)'
     required: false
     default: 'low'
+  ignores:
+    description: 'Whitespace- or comma-separated GHSA IDs to skip (e.g. "GHSA-xxxx-yyyy-zzzz GHSA-aaaa-bbbb-cccc"). Use for advisories that have no upstream patch and do not apply to this project. Document each entry in SECURITY.md or an audit doc.'
+    required: false
+    default: ''
 
 outputs:
   json:
@@ -21,5 +25,12 @@ runs:
       shell: bash
       env:
         AUDIT_LEVEL: ${{ inputs.level }}
+        AUDIT_IGNORES: ${{ inputs.ignores }}
       run: |
-        rebar3 audit --level "$AUDIT_LEVEL"
+        ignore_args=()
+        if [ -n "$AUDIT_IGNORES" ]; then
+          for ghsa in $(echo "$AUDIT_IGNORES" | tr ',' ' '); do
+            ignore_args+=(-i "$ghsa")
+          done
+        fi
+        rebar3 audit --level "$AUDIT_LEVEL" "${ignore_args[@]}"

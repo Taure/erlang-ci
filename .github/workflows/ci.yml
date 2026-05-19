@@ -95,6 +95,11 @@ on:
         type: string
         required: false
         default: 'low'
+      audit-ignores:
+        description: 'Whitespace- or comma-separated GHSA IDs to skip (no-patch advisories that do not apply to this project). Document each in SECURITY.md.'
+        type: string
+        required: false
+        default: ''
       enable-coverage:
         description: 'Enable code coverage (--cover flag + covertool)'
         type: boolean
@@ -384,6 +389,7 @@ jobs:
         id: audit
         with:
           level: ${{ inputs.audit-level }}
+          ignores: ${{ inputs.audit-ignores }}
 
   eunit:
     name: EUnit${{ matrix.otp && format(' (OTP {0})', matrix.otp) || '' }}

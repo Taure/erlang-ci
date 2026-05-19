@@ -137,6 +137,11 @@ jobs:
         working-directory: test/fixtures
         run: rebar3 audit --format json --level low
 
+      # --- Audit with ignores (smoke-tests audit-ignores wiring) ---
+      - name: Audit with ignores
+        working-directory: test/fixtures
+        run: rebar3 audit --level low -i GHSA-xxxx-yyyy-zzzz -i GHSA-aaaa-bbbb-cccc
+
       # --- SBOM (mirrors ci.yml sbom job command) ---
       - name: SBOM generate
         working-directory: test/fixtures
