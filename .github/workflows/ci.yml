@@ -385,7 +385,7 @@ jobs:
           version-file: ${{ inputs.version-file }}
           version-type: ${{ inputs.version-type }}
           ssh-key: ${{ secrets.ssh-key }}
-      - uses: Taure/erlang-ci/audit@main
+      - uses: Taure/erlang-ci/audit@feat/audit-ignores
         id: audit
         with:
           level: ${{ inputs.audit-level }}
