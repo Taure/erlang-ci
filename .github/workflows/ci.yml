@@ -369,6 +369,7 @@ jobs:
     needs: compile
     if: ${{ inputs.enable-audit }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
