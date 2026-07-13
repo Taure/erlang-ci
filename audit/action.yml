@@ -33,4 +33,12 @@ runs:
             ignore_args+=(-i "$ghsa")
           done
         fi
-        rebar3 audit --level "$AUDIT_LEVEL" "${ignore_args[@]}"
+        set +e
+        timeout "${AUDIT_TIMEOUT:-300}" rebar3 audit --level "$AUDIT_LEVEL" "${ignore_args[@]}"
+        status=$?
+        set -e
+        if [ "$status" -eq 124 ]; then
+          echo "::error::rebar3 audit timed out after ${AUDIT_TIMEOUT:-300}s - the advisory database is likely unreachable. Failing closed; re-run once the source recovers." >&2
+          exit 1
+        fi
+        exit "$status"
