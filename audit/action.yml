@@ -11,6 +11,10 @@ inputs:
     description: 'Whitespace- or comma-separated GHSA IDs to skip (e.g. "GHSA-xxxx-yyyy-zzzz GHSA-aaaa-bbbb-cccc"). Use for advisories that have no upstream patch and do not apply to this project. Document each entry in SECURITY.md or an audit doc.'
     required: false
     default: ''
+  token:
+    description: 'GitHub token used to authenticate advisory API requests. Without it the GitHub advisories API is limited to 60 requests/hour per IP, which rate-limits the audit. Defaults to the automatic workflow token.'
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   json:
@@ -26,6 +30,7 @@ runs:
       env:
         AUDIT_LEVEL: ${{ inputs.level }}
         AUDIT_IGNORES: ${{ inputs.ignores }}
+        GITHUB_TOKEN: ${{ inputs.token }}
       run: |
         ignore_args=()
         if [ -n "$AUDIT_IGNORES" ]; then
