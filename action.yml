@@ -94,6 +94,12 @@ runs:
       shell: bash
       run: |
         find _build -name "*.bea#" -delete 2>/dev/null || true
+        # Plugins live in _build/*/plugins and are pinned in rebar.config, not
+        # rebar.lock (the build-cache key). A restored cache - including the
+        # restore-keys prefix fallback - can therefore carry a plugin that no
+        # longer matches the pin, and rebar3 will not re-resolve a plugin that is
+        # already present. Drop them so the current rebar.config pins always win.
+        rm -rf _build/*/plugins 2>/dev/null || true
         # Clean project app compile artifacts (preserves dep cache)
         # Prevents parse transform .bea# failures with stale cached state
         rebar3 clean 2>/dev/null || true
