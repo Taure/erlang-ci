@@ -158,10 +158,16 @@ on:
         required: false
         default: false
       elp-version:
-        description: 'ELP release tag (e.g. "2026-02-27")'
+        # Must track the default in elp/action.yml. This one wins: the jobs
+        # below pass `version: ${{ inputs.elp-version }}` unconditionally, so
+        # the action's own default is never reached from here and a mismatch
+        # silently pins every consumer to whatever this says. 2026-08-10 is the
+        # first release carrying an OTP 29 binary; it ships no OTP 26 one, so a
+        # consumer still on 26 has to pass '2026-02-27'.
+        description: 'ELP release tag (e.g. "2026-08-10")'
         type: string
         required: false
-        default: '2026-02-27'
+        default: '2026-08-10'
 
       # Summary
       enable-summary:
