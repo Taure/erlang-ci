@@ -4,9 +4,12 @@ author: 'novaframework'
 
 inputs:
   version:
-    description: 'ELP release tag (e.g. "2026-02-27")'
+    description: 'ELP release tag (e.g. "2026-08-10")'
     required: false
-    default: '2026-02-27'
+    # First release carrying an OTP 29 binary. 2026-02-27, the previous
+    # default, tops out at OTP 28 and so cannot run at all on a repo pinned to
+    # 29 - which is every repo consuming this workflow.
+    default: '2026-08-10'
   mode:
     description: 'Which checks to run: lint, eqwalize, or both'
     required: false
@@ -27,20 +30,41 @@ runs:
       shell: bash
       env:
         ELP_VERSION: ${{ inputs.version }}
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
+        set -euo pipefail
         OTP_MAJOR=$(erl -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' -noshell)
-        case "$OTP_MAJOR" in
-          26) ELP_OTP="26.2" ;;
-          27) ELP_OTP="27.3" ;;
-          28) ELP_OTP="28" ;;
-          *) echo "::error::ELP does not provide binaries for OTP $OTP_MAJOR"; exit 1 ;;
-        esac
-        curl -fsSL "https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/elp-linux-x86_64-unknown-linux-gnu-otp-${ELP_OTP}.tar.gz" \
+        # ELP names each binary after the OTP *minor* it was built against, and
+        # which minors a release ships changes release to release: 2026-02-27
+        # shipped otp-26.2/27.3/28, 2026-08-10 shipped otp-27.3/28.5/29. A
+        # hardcoded major -> minor table therefore goes stale silently and then
+        # fails a whole OTP major with "ELP does not provide binaries", which is
+        # what kept the ELP jobs unusable for every OTP 29 repo. Resolve the
+        # asset from the release itself instead, taking the highest minor built
+        # for this major.
+        ASSET=$(gh release view "$ELP_VERSION" \
+                  --repo WhatsApp/erlang-language-platform \
+                  --json assets \
+                  --jq ".assets[].name
+                        | select(test(\"^elp-linux-x86_64-unknown-linux-gnu-otp-${OTP_MAJOR}([.][0-9]+)?[.]tar[.]gz$\"))" \
+                | sort -V | tail -1)
+        if [ -z "$ASSET" ]; then
+          echo "::error::ELP ${ELP_VERSION} ships no linux x86_64 binary for OTP ${OTP_MAJOR}. Pass a newer elp-version, or check which OTP majors that release built."
+          exit 1
+        fi
+        echo "Installing $ASSET"
+        curl -fsSL "https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/${ASSET}" \
           | tar -xz -C /usr/local/bin
 
     - name: Compile
       shell: bash
-      run: rebar3 compile
+      # `as test` so ELP can resolve test-profile deps. Without it a repo whose
+      # test sources use a parse transform from a test-only dep (proper, meck)
+      # gets `undefined function proper_transformer:parse_transform/2` reported
+      # as a lint error in CI and nowhere else, because those deps were never
+      # fetched.
+      run: rebar3 as test compile
 
     - name: ELP Lint
       if: ${{ inputs.mode == 'lint' || inputs.mode == 'both' }}
