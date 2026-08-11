@@ -38,6 +38,45 @@ jobs:
       - name: Lint workflows
         run: ./actionlint -shellcheck=""
 
+      # actionlint only reads .github/workflows, so the six composite actions
+      # this repo publishes were linted by nothing. A duplicate `env:` in
+      # elp/action.yml shipped to main and broke every consumer's ELP job with
+      # "'env' is already defined" - a template error the runner only raises at
+      # job start. PyYAML's default loader silently keeps the last duplicate,
+      # so the check has to reject them explicitly.
+      - name: Lint composite actions
+        run: |
+          python3 - <<'PY'
+          import glob, sys, yaml
+
+          class Strict(yaml.SafeLoader):
+              pass
+
+          def no_duplicate_keys(loader, node, deep=False):
+              seen, out = set(), {}
+              for k, v in node.value:
+                  key = loader.construct_object(k, deep=deep)
+                  if key in seen:
+                      raise ValueError("duplicate key %r at %s" % (key, k.start_mark))
+                  seen.add(key)
+                  out[key] = loader.construct_object(v, deep=deep)
+              return out
+
+          Strict.add_constructor(
+              yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicate_keys
+          )
+
+          failed = False
+          for path in sorted(glob.glob("**/action.yml", recursive=True)):
+              try:
+                  yaml.load(open(path), Strict)
+                  print("ok   %s" % path)
+              except Exception as exc:
+                  failed = True
+                  print("::error file=%s::%s" % (path, exc))
+          sys.exit(1 if failed else 0)
+          PY
+
   security:
     name: Security Scan
     runs-on: ubuntu-24.04
