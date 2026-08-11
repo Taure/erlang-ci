@@ -30,7 +30,6 @@ runs:
       shell: bash
       env:
         ELP_VERSION: ${{ inputs.version }}
-      env:
         GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
