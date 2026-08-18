@@ -67,7 +67,12 @@ runs:
       shell: bash
       run: |
         if [ ! -f mutate-output.txt ]; then exit 0; fi
-        sed -n '/^{"overall_score/,$p' mutate-output.txt | tr '\n' ' ' > mutate-json.txt
+        # rebar3_mutate emits the report as one compact JSON line, but may print
+        # notices AFTER it - e.g. "No mutable lines in the diff; --min-score not
+        # applied" in diff mode. Taking everything from the JSON line to EOF
+        # concatenated those notices onto the JSON and jq failed to parse it,
+        # so the job failed on exactly the runs where nothing needed mutating.
+        grep -m1 '^{"overall_score' mutate-output.txt > mutate-json.txt || true
         if [ ! -s mutate-json.txt ]; then exit 0; fi
 
         summary=$(jq -c '{
