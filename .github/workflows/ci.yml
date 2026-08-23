@@ -376,7 +376,10 @@ jobs:
           persist-credentials: false
           # eqwalize-scope: diff resolves the base ref with git; the default
           # shallow checkout has no commit to resolve it against.
-          fetch-depth: ${{ inputs.elp-eqwalize-scope == 'diff' && 0 || 1 }}
+          # Quoted deliberately. `cond && 0 || 1` yields 1, because 0 is
+          # falsy in a GitHub expression, so the unquoted form left the clone
+          # shallow and `base...HEAD` failed with "no merge base".
+          fetch-depth: ${{ inputs.elp-eqwalize-scope == 'diff' && '0' || '1' }}
       - name: Fetch base ref
         # See the suppression-guard job: checkout does not create origin/<base>.
         if: ${{ inputs.elp-eqwalize-scope == 'diff' }}
@@ -419,10 +422,9 @@ jobs:
         run: |
           git fetch --no-tags origin \
             "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-      - name: Check for added type-checker suppressions
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-suppressions.sh "origin/${BASE_REF}"
+      - uses: Taure/erlang-ci/suppressions@main
+        with:
+          base-ref: origin/${{ github.base_ref }}
 
   audit:
     name: Audit

@@ -1,0 +1,22 @@
+name: 'No New Suppressions'
+description: 'Fail a pull request that adds a type-checker suppression'
+author: 'novaframework'
+
+inputs:
+  base-ref:
+    description: 'Base ref to diff against (e.g. origin/main)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    # This has to be an action rather than a `run:` in the reusable workflow.
+    # A reusable workflow's steps execute in the CALLER's checkout, so a
+    # `scripts/...` path there resolves against the consumer repo and the
+    # script is simply absent. $GITHUB_ACTION_PATH is this repo's own checkout.
+    - name: Check for added type-checker suppressions
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+      run: |
+        "$GITHUB_ACTION_PATH/../scripts/check-suppressions.sh" "$BASE_REF"
