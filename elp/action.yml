@@ -14,6 +14,18 @@ inputs:
     description: 'Which checks to run: lint, eqwalize, or both'
     required: false
     default: 'both'
+  eqwalize-scope:
+    description: >-
+      'all' fails on any eqwalize error in the project. 'diff' fails only on
+      errors in modules this pull request touched, so a repo with an existing
+      backlog can still gate new code. 'diff' needs base-ref and a checkout with
+      enough history to resolve it.
+    required: false
+    default: 'all'
+  base-ref:
+    description: 'Base ref for eqwalize-scope: diff (e.g. origin/main)'
+    required: false
+    default: ''
 
 outputs:
   lint-json:
@@ -112,8 +124,18 @@ runs:
       if: ${{ inputs.mode == 'eqwalize' || inputs.mode == 'both' }}
       id: eqwalize-extract
       shell: bash
+      env:
+        EQW_SCOPE: ${{ inputs.eqwalize-scope }}
+        EQW_BASE: ${{ inputs.base-ref }}
       run: |
-        if [ ! -f elp-eqwalize-output.jsonl ] || [ ! -s elp-eqwalize-output.jsonl ]; then
+        if [ "$EQW_SCOPE" = "diff" ]; then
+          if [ -z "$EQW_BASE" ]; then
+            echo "::error::eqwalize-scope: diff needs base-ref"
+            exit 1
+          fi
+          summary=$("$GITHUB_ACTION_PATH/../scripts/eqwalize-scope.sh" \
+            elp-eqwalize-output.jsonl "$EQW_BASE")
+        elif [ ! -f elp-eqwalize-output.jsonl ] || [ ! -s elp-eqwalize-output.jsonl ]; then
           summary='{"errors":0,"warnings":0,"total":0}'
         else
           summary=$(grep '^\s*{' elp-eqwalize-output.jsonl | jq -sc '
@@ -129,6 +151,10 @@ runs:
         echo "ELP_EQW_EOF" >> "$GITHUB_OUTPUT"
         errors=$(echo "$summary" | jq '.errors')
         if [ "$errors" -gt 0 ]; then
-          echo "::error::ELP eqWAlize found $errors error(s)"
+          if [ "$EQW_SCOPE" = "diff" ]; then
+            echo "::error::ELP eqWAlize found $errors error(s) in modules this PR touched"
+          else
+            echo "::error::ELP eqWAlize found $errors error(s)"
+          fi
           exit 1
         fi

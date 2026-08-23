@@ -153,10 +153,27 @@ on:
         required: false
         default: false
       enable-elp-eqwalize:
-        description: 'Run ELP eqwalize-all type checking'
+        description: 'Run ELP eqwalize type checking'
         type: boolean
         required: false
         default: false
+      elp-eqwalize-scope:
+        # 'diff' exists so a repo with a backlog can gate new code today instead
+        # of after a cleanup. With the job off entirely a tree drifts: asobi went
+        # from 312 to 391 errors in twelve days while nothing was checking.
+        description: >-
+          'all' fails on any eqwalize error; 'diff' fails only on errors in
+          modules the pull request touched.
+        type: string
+        required: false
+        default: 'all'
+      enable-suppression-guard:
+        # Scoped to lines the diff ADDS, so turning this on cannot break a repo
+        # that already carries suppressions - it only stops new ones landing.
+        description: 'Fail a PR that adds eqwalizer:fixme or -dialyzer(nowarn_...)'
+        type: boolean
+        required: false
+        default: true
       elp-version:
         # Must track the default in elp/action.yml. This one wins: the jobs
         # below pass `version: ${{ inputs.elp-version }}` unconditionally, so
@@ -357,6 +374,17 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
+          # eqwalize-scope: diff resolves the base ref with git; the default
+          # shallow checkout has no commit to resolve it against.
+          fetch-depth: ${{ inputs.elp-eqwalize-scope == 'diff' && 0 || 1 }}
+      - name: Fetch base ref
+        # See the suppression-guard job: checkout does not create origin/<base>.
+        if: ${{ inputs.elp-eqwalize-scope == 'diff' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin \
+            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
       - uses: Taure/erlang-ci@main
         with:
           otp-version: ${{ inputs.otp-version }}
@@ -369,6 +397,32 @@ jobs:
         with:
           version: ${{ inputs.elp-version }}
           mode: eqwalize
+          eqwalize-scope: ${{ inputs.elp-eqwalize-scope }}
+          base-ref: ${{ inputs.elp-eqwalize-scope == 'diff' && format('origin/{0}', github.base_ref) || '' }}
+
+  suppression-guard:
+    name: No New Suppressions
+    if: ${{ inputs.enable-suppression-guard && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Fetch base ref
+        # actions/checkout fetches the history of the PR ref; it does not create
+        # a remote-tracking branch for the base, so `origin/<base>` is an
+        # unknown revision without this.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin \
+            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+      - name: Check for added type-checker suppressions
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-suppressions.sh "origin/${BASE_REF}"
 
   audit:
     name: Audit

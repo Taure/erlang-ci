@@ -25,6 +25,10 @@ jobs:
         run: bash scripts/detect-versions.test.sh
       - name: Run generate-trivyignore tests
         run: bash scripts/generate-trivyignore.test.sh
+      - name: Run check-suppressions tests
+        run: bash scripts/check-suppressions.test.sh
+      - name: Run eqwalize-scope tests
+        run: bash scripts/eqwalize-scope.test.sh
 
   lint:
     name: Lint Workflows
