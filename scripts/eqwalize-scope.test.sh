@@ -52,6 +52,25 @@ echo "--- summarise ---"
 assert_eq "counts errors and warnings apart" '{"errors":1,"warnings":1,"total":2}' "$(summ 'src/b.erl')"
 assert_eq "clean scope is zero" '{"errors":0,"warnings":0,"total":0}' "$(summ 'src/never.erl')"
 
+# The unit tests above call filter_by_paths directly, which is why an empty
+# changed set looked fine while the real pipeline exited 2. Under
+# `set -o pipefail` a right-hand side that returns without reading stdin makes
+# the writer take SIGPIPE, and the whole pipeline fails.
+echo "--- pipeline under pipefail ---"
+
+pipeline_rc() {
+    (
+        set -euo pipefail
+        printf '%s\n' "$DIAGS" | grep '^\s*{' | filter_by_paths "$1" | summarise >/dev/null
+    ) 2>/dev/null
+    echo $?
+}
+
+assert_eq "empty changed set does not break the pipe" "0" "$(pipeline_rc '')"
+assert_eq "whitespace changed set does not break the pipe" "0" "$(pipeline_rc '   ')"
+assert_eq "a matching path still succeeds" "0" "$(pipeline_rc 'src/a.erl')"
+assert_eq "a non-matching path still succeeds" "0" "$(pipeline_rc 'src/never.erl')"
+
 echo "--- main ---"
 
 TMP=$(mktemp -d)
@@ -61,6 +80,16 @@ assert_eq "an empty run is zero, not an error" \
     '{"errors":0,"warnings":0,"total":0}' "$(main "$TMP/empty.jsonl" HEAD 2>/dev/null)"
 assert_eq "a missing input is zero, not a crash" \
     '{"errors":0,"warnings":0,"total":0}' "$(main "$TMP/nope.jsonl" HEAD 2>/dev/null)"
+
+# A PR touching no Erlang is the ordinary case for a docs or CI change, and it
+# must report zero rather than fail. This is what asobi#553 hit.
+printf '%s\n' "$DIAGS" > "$TMP/diags.jsonl"
+main_rc() {
+    ( set -euo pipefail; main "$1" "$2" >/dev/null ) 2>/dev/null
+    echo $?
+}
+assert_eq "main exits 0 when the PR touches no Erlang" "0" \
+    "$(cd "$TMP" && git init -q . 2>/dev/null; main_rc "$TMP/diags.jsonl" HEAD)"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

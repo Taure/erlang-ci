@@ -20,6 +20,10 @@ set -euo pipefail
 filter_by_paths() {
     local paths="$1"
     if [ -z "${paths//[[:space:]]/}" ]; then
+        # Drain rather than return: this runs on the right-hand side of a pipe
+        # under `set -o pipefail`, and returning here closes the pipe under the
+        # writer, which takes SIGPIPE and fails the whole pipeline.
+        cat >/dev/null
         return 0
     fi
     jq -c --arg want "$paths" '
@@ -62,6 +66,12 @@ main() {
 
     local paths
     paths=$(changed_erl_paths "$base" "$head")
+    # A PR that touches no Erlang has nothing to gate. Short-circuit rather
+    # than run a pipeline whose only possible answer is zero.
+    if [ -z "${paths//[[:space:]]/}" ]; then
+        echo '{"errors":0,"warnings":0,"total":0}'
+        return 0
+    fi
     grep '^\s*{' "$input" | filter_by_paths "$paths" | summarise
 }
 
