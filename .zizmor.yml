@@ -8,5 +8,6 @@ rules:
         Taure/erlang-ci/audit: ref-pin
         Taure/erlang-ci/sbom: ref-pin
         Taure/erlang-ci/mutate: ref-pin
+        Taure/erlang-ci/suppressions: ref-pin
   secrets-outside-env:
     disable: true
