@@ -563,10 +563,25 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: coverdata-*
-          merge-multiple: true
-          path: _build/test/cover
+          path: _build/test/cover/legs
       - name: Compile and generate coverage report
+        env:
+          OTP_VERSION: ${{ inputs.otp-version }}
         run: |
+          # Every OTP leg uploads the same file names, and merging them into one
+          # directory let concurrent downloads interleave into a corrupt file.
+          for kind in eunit ct; do
+            leg="_build/test/cover/legs/coverdata-$kind-otp$OTP_VERSION"
+            if [ ! -d "$leg" ]; then
+              for candidate in _build/test/cover/legs/coverdata-"$kind"-otp*; do
+                leg="$candidate"
+                break
+              done
+            fi
+            if [ -f "$leg/$kind.coverdata" ]; then
+              cp "$leg/$kind.coverdata" "_build/test/cover/$kind.coverdata"
+            fi
+          done
           rebar3 as test compile
           echo "Coverdata files:"
           ls -la _build/test/cover/*.coverdata 2>/dev/null || echo "No coverdata files found"
