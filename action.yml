@@ -85,7 +85,7 @@ runs:
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: _build
-        key: ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-${{ hashFiles('rebar.lock') }}
+        key: ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-${{ hashFiles('rebar.config', 'rebar.lock') }}
         restore-keys: |
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-
           ${{ inputs.cache-key-prefix }}-build-${{ runner.os }}-
@@ -100,6 +100,12 @@ runs:
         # longer matches the pin, and rebar3 will not re-resolve a plugin that is
         # already present. Drop them so the current rebar.config pins always win.
         rm -rf _build/*/plugins 2>/dev/null || true
+        # Without a rebar.lock nothing pins the deps a restored cache holds, and
+        # rebar3 keeps a dep already in _build even when rebar.config now asks
+        # for a newer version. Refetch them.
+        if [ ! -f rebar.lock ]; then
+          rm -rf _build/*/lib 2>/dev/null || true
+        fi
         # Clean project app compile artifacts (preserves dep cache)
         # Prevents parse transform .bea# failures with stale cached state
         rebar3 clean 2>/dev/null || true
