@@ -74,8 +74,12 @@ runs:
       # test sources use a parse transform from a test-only dep (proper, meck)
       # gets `undefined function proper_transformer:parse_transform/2` reported
       # as a lint error in CI and nowhere else, because those deps were never
-      # fetched.
-      run: rebar3 as test compile
+      # fetched. A repo whose .elp.toml names a rebar profile (for example
+      # `test,eqwalizer`, to load eqwalizer_support) is analysed under that
+      # profile's _build directory, so that is the profile compiled here.
+      run: |
+        PROFILE=$(sed -n 's/^[[:space:]]*profile[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .elp.toml 2>/dev/null | head -1)
+        rebar3 as "${PROFILE:-test}" compile
 
     - name: ELP Lint
       if: ${{ inputs.mode == 'lint' || inputs.mode == 'both' }}
