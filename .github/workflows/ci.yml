@@ -34,7 +34,7 @@ on:
         required: false
         default: ''
       otp-matrix:
-        description: 'JSON array of OTP versions for matrix testing (e.g. ''["27","28"]''). Tests run on all, dialyzer on latest only.'
+        description: 'JSON array of OTP versions for matrix testing (e.g. ''["27","28"]''). Tests run on all, dialyzer on latest only. When empty, tests run on version-file if set, else otp-version.'
         type: string
         required: false
         default: ''
@@ -462,7 +462,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
+        # With a version-file and no otp-matrix the single leg is "", which
+        # hands the version-file to setup below instead of the otp-version
+        # default, so tests run on the same OTP as compile and dialyzer.
+        otp: ${{ fromJSON(inputs.otp-matrix || (inputs.version-file != '' && '[""]') || format('["{0}"]', inputs.otp-version)) }}
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
     steps:
@@ -473,6 +476,8 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+          version-file: ${{ matrix.otp == '' && inputs.version-file || '' }}
+          version-type: ${{ matrix.otp == '' && inputs.version-type || '' }}
           ssh-key: ${{ secrets.ssh-key }}
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
@@ -504,7 +509,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: ${{ fromJSON(inputs.otp-matrix || format('["{0}"]', inputs.otp-version)) }}
+        # See the eunit matrix for the "" leg.
+        otp: ${{ fromJSON(inputs.otp-matrix || (inputs.version-file != '' && '[""]') || format('["{0}"]', inputs.otp-version)) }}
     env:
       HEX_API_KEY: ${{ secrets.hex-api-key }}
     steps:
@@ -515,6 +521,8 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           rebar3-version: ${{ inputs.rebar3-version }}
+          version-file: ${{ matrix.otp == '' && inputs.version-file || '' }}
+          version-type: ${{ matrix.otp == '' && inputs.version-type || '' }}
           ssh-key: ${{ secrets.ssh-key }}
       - name: Start extra services
         if: ${{ inputs.extra-services-compose != '' }}
