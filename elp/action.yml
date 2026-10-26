@@ -78,7 +78,10 @@ runs:
       # `test,eqwalizer`, to load eqwalizer_support) is analysed under that
       # profile's _build directory, so that is the profile compiled here.
       run: |
-        PROFILE=$(sed -n 's/^[[:space:]]*profile[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .elp.toml 2>/dev/null | head -1)
+        PROFILE=""
+        if [ -f .elp.toml ]; then
+          PROFILE=$(sed -n 's/^[[:space:]]*profile[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .elp.toml | head -1)
+        fi
         rebar3 as "${PROFILE:-test}" compile
 
     - name: ELP Lint
