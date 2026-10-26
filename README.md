@@ -794,6 +794,8 @@ Requires `pull-requests: write` permission on the caller's `ci` job.
 
 The badge color reflects coverage level: green (90%+), yellow (70%+), orange (50%+), red (below 50%).
 
+With an `otp-matrix`, the coverdata from every OTP leg is merged, so a line counts as covered if any leg ran it.
+
 ### Security Audit (`enable-audit`)
 
 **Clean scan:**
