@@ -108,6 +108,8 @@ jobs:
       - uses: ./
         with:
           otp-version: '28'
+      - name: Run drop-branch-deps tests
+        run: bash scripts/drop-branch-deps.test.sh
 
   # Test version-file support with auto-detected version-type
   integration-version-file:
