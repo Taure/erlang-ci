@@ -400,6 +400,8 @@ The setup action handles:
 - Caching `~/.cache/rebar3` (hex packages, plugins)
 - Caching `_build` (compiled dependencies), keyed on the resolved OTP version, `rebar.config` and `rebar.lock`. A cache built on another OTP version is never restored.
 
+Plugins, and git deps that track a branch without a `rebar.lock` pin (deps in a profile other than default, or any dep in a repo with no lock), are dropped from the restored `_build` so rebar3 fetches them fresh. Pin them to a tag or ref to keep builds reproducible.
+
 ## Extending with custom jobs
 
 Reusable workflows run as complete jobs — you cannot inject steps into them. Instead, add your own jobs **alongside** the reusable workflow and use `needs:` to control execution order.

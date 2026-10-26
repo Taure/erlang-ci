@@ -94,6 +94,8 @@ runs:
 
     - name: Clean stale compile artifacts
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         find _build -name "*.bea#" -delete 2>/dev/null || true
         # Plugins live in _build/*/plugins and are pinned in rebar.config, not
@@ -108,6 +110,10 @@ runs:
         if [ ! -f rebar.lock ]; then
           rm -rf _build/*/lib 2>/dev/null || true
         fi
+        # rebar.lock pins only default-profile deps, so a git dep tracking a
+        # branch from any other profile would stay at the cached commit.
+        bash "$ACTION_PATH/scripts/drop-branch-deps.sh" ||
+          echo "::warning::Could not drop cached branch-tracked deps"
         # Clean project app compile artifacts (preserves dep cache)
         # Prevents parse transform .bea# failures with stale cached state
         rebar3 clean 2>/dev/null || true
