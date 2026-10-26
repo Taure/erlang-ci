@@ -565,23 +565,30 @@ jobs:
           pattern: coverdata-*
           path: _build/test/cover/legs
       - name: Compile and generate coverage report
-        env:
-          OTP_VERSION: ${{ inputs.otp-version }}
         run: |
-          # Every OTP leg uploads the same file names, and merging them into one
-          # directory let concurrent downloads interleave into a corrupt file.
+          # Every OTP leg uploads the same file names, so each was downloaded
+          # into its own directory. covertool reads only eunit.coverdata and
+          # ct.coverdata, so merge each kind's legs into that one file; cover
+          # adds the counts, and the report covers every leg, not just one.
+          shopt -s nullglob
           for kind in eunit ct; do
-            leg="_build/test/cover/legs/coverdata-$kind-otp$OTP_VERSION"
-            if [ ! -d "$leg" ]; then
-              for candidate in _build/test/cover/legs/coverdata-"$kind"-otp*; do
-                leg="$candidate"
-                break
-              done
-            fi
-            if [ -f "$leg/$kind.coverdata" ]; then
-              cp "$leg/$kind.coverdata" "_build/test/cover/$kind.coverdata"
-            fi
+            legs=(_build/test/cover/legs/coverdata-"$kind"-otp*/"$kind".coverdata)
+            [ "${#legs[@]}" -gt 0 ] || continue
+            echo "Merging ${#legs[@]} $kind leg(s): ${legs[*]}"
+            erl -noshell -eval '
+              [Out | Legs] = init:get_plain_arguments(),
+              try
+                {ok, _} = cover:start(),
+                [ok = cover:import(Leg) || Leg <- Legs],
+                ok = cover:export(Out),
+                halt(0)
+              catch
+                Class:Reason ->
+                  io:format(standard_error, "coverdata merge failed: ~p:~p~n", [Class, Reason]),
+                  halt(1)
+              end.' -extra "_build/test/cover/$kind.coverdata" "${legs[@]}"
           done
+          shopt -u nullglob
           rebar3 as test compile
           echo "Coverdata files:"
           ls -la _build/test/cover/*.coverdata 2>/dev/null || echo "No coverdata files found"
