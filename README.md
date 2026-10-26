@@ -398,7 +398,7 @@ steps:
 The setup action handles:
 - Installing Erlang/OTP and rebar3 via [erlef/setup-beam](https://github.com/erlef/setup-beam)
 - Caching `~/.cache/rebar3` (hex packages, plugins)
-- Caching `_build` (compiled dependencies)
+- Caching `_build` (compiled dependencies), keyed on the resolved OTP version, `rebar.config` and `rebar.lock`. A cache built on another OTP version is never restored.
 
 Plugins, and git deps that track a branch without a `rebar.lock` pin (deps in a profile other than default, or any dep in a repo with no lock), are dropped from the restored `_build` so rebar3 fetches them fresh. Pin them to a tag or ref to keep builds reproducible.
 
@@ -632,7 +632,7 @@ jobs:
 | `rebar3-version` | `3` | Rebar3 version |
 | `version-file` | — | Read versions from `.tool-versions` or `mise.toml` |
 | `version-type` | — | Version match type (`strict` or `loose`). Defaults to `strict` when `version-file` is set |
-| `otp-matrix` | — | JSON array of OTP versions for matrix testing (e.g. `'["27","28"]'`) |
+| `otp-matrix` | — | JSON array of OTP versions for matrix testing (e.g. `'["27","28"]'`). When empty, eunit and ct run on the `version-file` OTP if set, else `otp-version` |
 
 ### Steps
 
