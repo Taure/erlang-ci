@@ -8,12 +8,22 @@ on:
         type: string
         required: false
         default: 'cliff.toml'
+    outputs:
+      tag:
+        description: 'Tag this run created. Empty when it created none.'
+        value: ${{ jobs.release.outputs.tag }}
+      released:
+        description: '"true" when this run created a tag and a GitHub release, otherwise "false"'
+        value: ${{ jobs.release.outputs.released }}
 
 jobs:
   release:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.create.outputs.tag }}
+      released: ${{ steps.create.outputs.released || 'false' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -82,6 +92,7 @@ jobs:
           args: --unreleased --strip header --tag ${{ steps.resolve.outputs.next }}
 
       - name: Create tag and release
+        id: create
         if: steps.resolve.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,3 +108,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes "$CHANGELOG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "released=true" >> "$GITHUB_OUTPUT"
