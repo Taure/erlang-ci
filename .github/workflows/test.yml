@@ -29,6 +29,8 @@ jobs:
         run: bash scripts/check-suppressions.test.sh
       - name: Run eqwalize-scope tests
         run: bash scripts/eqwalize-scope.test.sh
+      - name: Run hex-publish workflow tests
+        run: bash scripts/hex-publish-workflow.test.sh
 
   lint:
     name: Lint Workflows

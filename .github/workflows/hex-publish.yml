@@ -1,0 +1,228 @@
+name: Hex Publish
+
+# Publishes an existing tag to hex.pm with Hex Workload Identity (OIDC), so no
+# HEX_API_KEY is stored anywhere. This is a separate workflow from release.yml
+# because GitHub validates the permissions a called workflow requests when the
+# run starts, whether or not the job would run: an `id-token: write` job inside
+# release.yml would fail every caller that grants it `contents: write` only.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Existing vX.Y.Z tag to publish, normally the `tag` output of release.yml'
+        type: string
+        required: true
+      environment:
+        description: 'GitHub environment named by the Hex workload identity'
+        type: string
+        required: false
+        default: 'release'
+      otp-version:
+        description: 'Erlang/OTP version, 27 or later. Ignored if a version file is used. Defaults to 28 when there is no .tool-versions.'
+        type: string
+        required: false
+        default: ''
+      rebar3-version:
+        description: 'Rebar3 version. Ignored if a version file is used.'
+        type: string
+        required: false
+        default: '3'
+      version-file:
+        description: 'Read versions from file (.tool-versions or mise.toml). Defaults to .tool-versions when it exists and otp-version is empty.'
+        type: string
+        required: false
+        default: ''
+      wait-for-approval:
+        description: 'Wait for a staged release to be approved on hex.pm instead of failing when the release is held'
+        type: boolean
+        required: false
+        default: false
+
+permissions: {}
+
+jobs:
+  hex-publish:
+    name: Publish to Hex
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.wait-for-approval && 360 || 20 }}
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write # the OIDC token rebar3 exchanges for a Hex token
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check trigger and tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          case "$EVENT_NAME" in
+            push | workflow_dispatch | release) ;;
+            workflow_run | pull_request_target)
+              echo "::error::Hex rejects OIDC tokens from $EVENT_NAME runs. Publish from the push or workflow_dispatch run that creates the tag."
+              exit 1
+              ;;
+            *)
+              echo "::error::Hex publishing runs on push, workflow_dispatch and release only, not $EVENT_NAME."
+              exit 1
+              ;;
+          esac
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The tag input must look like v1.2.3."
+            exit 1
+          fi
+
+      # vsn comes from git, so the tag has to be the checked-out ref and every
+      # tag has to be present.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the tag is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::Could not determine the default branch from the $GITHUB_EVENT_NAME event."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::$TAG is not on $DEFAULT_BRANCH. Only commits on the default branch are published."
+            exit 1
+          fi
+
+      # No Taure/erlang-ci setup action here: it restores build caches and is
+      # referenced by branch, and neither belongs in a job that can publish.
+      - name: Select OTP and rebar3 versions
+        id: versions
+        env:
+          VERSION_FILE: ${{ inputs.version-file }}
+          OTP_VERSION: ${{ inputs.otp-version }}
+          REBAR3_VERSION: ${{ inputs.rebar3-version }}
+        run: |
+          if [ -z "$VERSION_FILE" ] && [ -z "$OTP_VERSION" ] && [ -f .tool-versions ]; then
+            VERSION_FILE=.tool-versions
+          fi
+          if [ -n "$VERSION_FILE" ]; then
+            {
+              echo "file=$VERSION_FILE"
+              echo "type=strict"
+              echo "otp="
+              echo "rebar3="
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "file="
+              echo "type=loose"
+              echo "otp=${OTP_VERSION:-28}"
+              echo "rebar3=${REBAR3_VERSION:-3}"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: ${{ steps.versions.outputs.otp }}
+          rebar3-version: ${{ steps.versions.outputs.rebar3 }}
+          version-file: ${{ steps.versions.outputs.file }}
+          version-type: ${{ steps.versions.outputs.type }}
+
+      - name: Preflight
+        id: preflight
+        run: |
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+          app_key() {
+            sed -nE "s/.*\{$1, *\"?([^\"}]+)\"?\}.*/\1/p" "$2" | head -n 1
+          }
+
+          [ -z "${HEX_API_KEY:-}" ] ||
+            fail "HEX_API_KEY is set. rebar3 would publish with that key instead of Workload Identity: remove it."
+          [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] ||
+            fail "No OIDC token is available. Grant id-token: write on the job that calls hex-publish.yml."
+
+          OTP=$(erl -noshell -eval 'io:put_chars(erlang:system_info(otp_release)), halt().')
+          [ "$OTP" -ge 27 ] ||
+            fail "Workload Identity needs OTP 27 or later, this job runs OTP $OTP."
+
+          shopt -s nullglob
+          APP_SRC=(src/*.app.src)
+          [ "${#APP_SRC[@]}" -eq 1 ] ||
+            fail "Expected exactly one src/*.app.src. Umbrella projects are not supported."
+          APP=$(basename "${APP_SRC[0]}" .app.src)
+
+          rebar3 compile
+
+          HEX_APP=_build/default/plugins/rebar3_hex/ebin/rebar3_hex.app
+          [ -f "$HEX_APP" ] ||
+            fail "rebar3_hex is not a plugin of this project. Add {rebar3_hex, \"~> 7.5\"} to project_plugins."
+          HEX_VSN=$(app_key vsn "$HEX_APP")
+          [ "$(printf '%s\n' 7.5.0 "$HEX_VSN" | sort -V | head -n 1)" = "7.5.0" ] ||
+            fail "rebar3_hex $HEX_VSN is too old for Workload Identity. Pin {rebar3_hex, \"~> 7.5\"} in project_plugins."
+
+          APP_FILE="_build/default/lib/$APP/ebin/$APP.app"
+          VSN=$(app_key vsn "$APP_FILE")
+          [ "$VSN" = "${TAG#v}" ] ||
+            fail "rebar3 computes version '$VSN' for $APP, which does not match $TAG."
+          PKG=$(app_key pkg_name "$APP_FILE")
+          PKG=${PKG:-$APP}
+
+          # A re-run after the package went out but its docs did not must not
+          # publish the package a second time.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://hex.pm/api/packages/$PKG/releases/$VSN" || true)
+          case "$STATUS" in
+            200) echo "published=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
+            *) fail "Could not tell whether $PKG $VSN is on Hex (HTTP $STATUS)." ;;
+          esac
+          {
+            echo "package=$PKG"
+            echo "version=$VSN"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        env:
+          PKG: ${{ steps.preflight.outputs.package }}
+          VSN: ${{ steps.preflight.outputs.version }}
+          PUBLISHED: ${{ steps.preflight.outputs.published }}
+          WAIT: ${{ inputs.wait-for-approval }}
+        run: |
+          ARGS=(--yes)
+          if [ "$WAIT" = "true" ]; then
+            ARGS+=(--wait)
+          fi
+          if [ "$PUBLISHED" = "true" ]; then
+            echo "::notice::$PKG $VSN is already on Hex, publishing its docs only."
+            rebar3 hex publish docs "${ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/hex-publish.log"
+          else
+            rebar3 hex publish "${ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/hex-publish.log"
+          fi
+
+      # rebar3 exits 0 when Hex holds the release for approval, so the registry
+      # is the only proof that the release went out.
+      - name: Verify the release is on Hex
+        env:
+          PKG: ${{ steps.preflight.outputs.package }}
+          VSN: ${{ steps.preflight.outputs.version }}
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://hex.pm/api/packages/$PKG/releases/$VSN" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Published [$PKG $VSN](https://hex.pm/packages/$PKG/$VSN) to Hex from $TAG." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          if grep -q "staged for approval" "$RUNNER_TEMP/hex-publish.log"; then
+            echo "::error::$PKG $VSN is staged on hex.pm and is not in the registry. Approve it there within seven days, or turn staged publishing off for the package."
+          else
+            echo "::error::$PKG $VSN is not on Hex after publishing (HTTP $STATUS)."
+          fi
+          exit 1
