@@ -142,6 +142,177 @@ jobs:
 |-------|---------|-------------|
 | `cliff-config` | `cliff.toml` | Path to git-cliff config file |
 
+| Output | Description |
+|--------|-------------|
+| `tag` | Tag this run created. Empty when it created none. |
+| `released` | `"true"` when this run created a tag and a GitHub release, otherwise `"false"` |
+
+## Publishing to Hex
+
+`hex-publish.yml` publishes the tag that `release.yml` just created to [hex.pm](https://hex.pm), package and docs, using [Hex Workload Identity](https://hex.pm/docs/workload-identity). GitHub signs a short-lived OIDC token for the job, Hex exchanges it for a token that lasts 15 minutes and can publish one package. No `HEX_API_KEY` is stored anywhere.
+
+It is opt-in. A repo that does not call `hex-publish.yml` is unaffected, and `release.yml` still needs `contents: write` only.
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.3.0
+    permissions:
+      contents: write
+
+  hex-publish:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: Taure/erlang-ci/.github/workflows/hex-publish.yml@v2.3.0
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+```
+
+The two jobs must be in the same workflow run. A tag pushed with `GITHUB_TOKEN` starts no other workflow, so a separate `on: push: tags` workflow would never run, and Hex refuses tokens from `workflow_run`.
+
+What the job does:
+
+1. Fails unless the run was triggered by `push`, `workflow_dispatch` or `release`.
+2. Checks out the tag with full history and refuses a tag that is not on the default branch.
+3. Installs OTP and rebar3 from `.tool-versions` (or the inputs) without restoring any cache.
+4. Fails if `HEX_API_KEY` is set, if OTP is older than 27, if rebar3_hex is older than 7.5, or if the version rebar3 computes differs from the tag.
+5. Runs `rebar3 hex publish --yes`, which publishes the package and its docs with the same token.
+6. Fails unless the release is then visible on hex.pm.
+
+A push that produces no version bump creates no tag, so `released` is `"false"` and nothing is published. A failed publish fails the run. The tag and the GitHub release already exist at that point and are left alone, see [Re-running a failed publish](#re-running-a-failed-publish).
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `tag` | required | Existing `vX.Y.Z` tag to publish |
+| `environment` | `release` | GitHub environment named by the Hex workload identity |
+| `otp-version` | | OTP version, 27 or later. Empty reads `.tool-versions`, or installs 28 when there is none |
+| `rebar3-version` | `3` | Rebar3 version. Ignored when a version file is used |
+| `version-file` | | Version file to read instead of `.tool-versions` |
+| `wait-for-approval` | `false` | Wait for a staged release to be approved instead of failing |
+
+### Requirements
+
+- The package already exists on hex.pm. See [First release](#first-release).
+- `rebar3_hex` 7.5 or later in `project_plugins`, for example `{rebar3_hex, "~> 7.5"}`, and a doc provider (`{hex, [{doc, ex_doc}]}`).
+- OTP 27 or later in the publish job.
+- One application in `src/` with `{vsn, "git"}`. Umbrella projects are not supported.
+- The publish job runs in the workflow run that a `push` to the default branch started.
+
+### One-time setup per package
+
+Only the package owner can do these. Nothing here is automated.
+
+**1. GitHub environment.** Hex requires an environment for a public repository. Create `release` in the calling repository and restrict it to the default branch:
+
+```bash
+gh api -X PUT repos/OWNER/REPO/environments/release --input - <<'JSON'
+{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+JSON
+gh api -X POST repos/OWNER/REPO/environments/release/deployment-branch-policies \
+  -f name=main -f type=branch
+```
+
+GitHub matches the branch rule against the ref that triggered the run, which is `refs/heads/main` for a push to `main`, not against the tag the job checks out.
+
+**2. Workload identity on hex.pm.** Open the package, then Settings > Workload identities. This needs full ownership of the package and two-factor authentication on the Hex account.
+
+| Field | Value |
+|-------|-------|
+| Repository owner | The GitHub user or organisation that owns the calling repository, for example `Taure` |
+| Repositories | The calling repository's name without the owner, for example `shigoto` |
+| Workflow | The file name of the workflow in the calling repository that contains the `hex-publish` job: `release.yml` for the snippet above, `ci.yml` when the jobs live in your CI workflow. Never `hex-publish.yml` |
+| Environment | `release` |
+
+Hex matches the calling workflow, not the reusable one, and the file name is case-sensitive. If you later move the jobs to another workflow file, add an identity for the new file name first.
+
+**3. Staged publishing.** See the next section. For a fully automatic release it has to be off for the package.
+
+**4. Old credentials.** Delete any `HEX_API_KEY` secret that was only there for publishing, and revoke that key on hex.pm. The publish job receives no secrets, so a leftover secret cannot reach it, but it is still a long-lived publishing credential.
+
+### Who approves a release
+
+Workload Identity removes the stored key. It does not add a human check. Pick one:
+
+| Setup | What happens on a release | Who can publish |
+|-------|---------------------------|-----------------|
+| Environment restricted to the default branch, no reviewer, staged publishing off | Fully automatic. Every push to the default branch that bumps the version is on hex.pm a few minutes later | Anyone who can get a commit onto the default branch. Protect that branch |
+| Environment with a required reviewer | The publish job waits in GitHub until a reviewer approves it. The tag and GitHub release are created before the approval | A reviewer, for each release |
+| Staged publishing on for the package | The job uploads the release and Hex holds it. It is not in the registry until an owner approves it on hex.pm with a 2FA code. A staged release expires after seven days | A package owner, for each release |
+
+Staged publishing is a package setting under Settings > Staged publishing on hex.pm. It is off for packages that existed before it was introduced and on by default for new public packages, so check it after a first release. Changing it needs 2FA.
+
+With staged publishing on and `wait-for-approval: false`, the publish job fails with a message that the release is staged, because nothing reached the registry. Approving the staged release on hex.pm completes it and needs no re-run. With `wait-for-approval: true` the job passes `--wait` to rebar3, waits up to six hours, and fails if the release is rejected or expires.
+
+Hex can also switch on an emergency publishing mode during an incident. Every release published from CI is then staged, whatever the package setting.
+
+### First release
+
+A workload identity cannot create a package or publish its first release. Publish the first version from your own machine with `rebar3 hex publish` and your Hex account, then add the workload identity. New public packages start with staged publishing on.
+
+### Re-running a failed publish
+
+A failed publish leaves the tag and the GitHub release in place and the run red. Fix the cause, then use **Re-run failed jobs** on that run. Only `hex-publish` runs again, with the tag from the first attempt, so no second tag is created. If the package was published and only the docs failed, the re-run publishes the docs alone.
+
+Do not use **Re-run all jobs**: `release` then finds nothing to bump, reports `released: "false"`, and the publish is skipped.
+
+GitHub keeps a run re-runnable for 30 days. To publish an existing tag after that, or after a failed `release` job, give the calling workflow a manual trigger:
+
+```yaml
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      hex-tag:
+        description: 'Existing tag to publish to Hex'
+        type: string
+        required: true
+
+jobs:
+  release:
+    if: github.event_name == 'push'
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.3.0
+    permissions:
+      contents: write
+
+  hex-publish:
+    needs: release
+    if: ${{ !cancelled() && (needs.release.outputs.released == 'true' || (github.event_name == 'workflow_dispatch' && inputs.hex-tag != '')) }}
+    uses: Taure/erlang-ci/.github/workflows/hex-publish.yml@v2.3.0
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      tag: ${{ inputs.hex-tag || needs.release.outputs.tag }}
+```
+
+Run it from the default branch. The environment's branch rule refuses any other ref.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---------|-------|
+| The calling workflow fails at startup with `is requesting 'id-token: write', but is only allowed 'id-token: none'` | The `hex-publish` job in the calling workflow does not grant `id-token: write` |
+| `HEX_API_KEY is set` | A key is in the job's environment. rebar3 would publish with it instead of Workload Identity |
+| `access_denied`, no matching workload identity | The identity's repository, workflow file name or environment does not match the run. The workflow is the calling file (`release.yml`, `ci.yml`), matched case-sensitively |
+| `access_denied` on a public repository with the right file name | The identity has no environment, or the job's environment has another name than the identity's |
+| `Hex rejects OIDC tokens from workflow_run runs` | The publish was started by `workflow_run` or `pull_request_target`. Move it into the run started by the `push` |
+| The publish job fails before its first step with an environment protection rules error | The ref that triggered the run is not allowed by the environment's branch rule |
+| `rebar3_hex ... is too old` or `rebar3_hex is not a plugin` | Add `{rebar3_hex, "~> 7.5"}` to `project_plugins` |
+| `Workload Identity needs OTP 27 or later` | Raise the OTP version in `.tool-versions` or pass `otp-version` |
+| `rebar3 computes version ... which does not match` | `vsn` is not `"git"`, or a newer tag exists than the one being published |
+| `is staged on hex.pm and is not in the registry` | Staged publishing is on. Approve the release on hex.pm, or turn the setting off |
+| Publishing fails because the package does not exist | The first release has to be published by hand |
+
 ## Examples
 
 ### Simple library
@@ -900,6 +1071,7 @@ with:
 - All `v*` release tags are **immutable** — protected by repository rulesets that prevent deletion and force-push
 - No floating major tags (`@v1`, `@v2`) — pin to exact semver versions
 - All third-party action references are SHA-pinned
+- `hex-publish.yml` takes no secrets, restores no cache and requests `contents: read` and `id-token: write` only
 - Workflows are scanned by [zizmor](https://docs.zizmor.sh/) and [actionlint](https://github.com/rhysd/actionlint) on every PR
 
 ## License
