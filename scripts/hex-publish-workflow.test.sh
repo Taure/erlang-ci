@@ -9,6 +9,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 python3 - "$ROOT/.github/workflows" <<'PY'
 import re
+import subprocess
 import sys
 
 import yaml
@@ -99,7 +100,50 @@ check(
     "Preflight" in names and "Publish" in names and names.index("Preflight") < names.index("Publish"),
 )
 preflight = next(s for s in steps(publish) if s.get("name") == "Preflight")
-check("preflight refuses rebar3 before 3.27.1", "printf '%s\\n' 3.27.1 \"$REBAR3\"" in preflight["run"])
+
+
+def rebar3_check(version_output):
+    # Runs the preflight's rebar3 version check against a stubbed rebar3.
+    lines = preflight["run"].splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip().startswith("REBAR3=$("))
+    end = next(i for i in range(start, len(lines)) if lines[i].strip() == "fi")
+    script = "\n".join(
+        [
+            "set -eo pipefail",
+            'fail() { echo "FAIL: $1"; exit 1; }',
+            "rebar3() { cat <<'OUT'",
+            version_output,
+            "OUT",
+            "}",
+        ]
+        + lines[start : end + 1]
+    )
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    return result.returncode, result.stdout
+
+
+FETCH = (
+    "\x1b[0;32m===> Fetching rebar3_hex v7.5.0\n"
+    "\x1b[0m\x1b[0;32m===> Analyzing applications...\n"
+    "\x1b[0m\x1b[0;32m===> Compiling rebar3_hex\n"
+    "\x1b[0m"
+)
+check("rebar3 3.28.0 passes", rebar3_check("rebar 3.28.0 on Erlang/OTP 29 Erts 17.0") == (0, ""))
+check("rebar3 3.27.1 passes", rebar3_check("rebar 3.27.1 on Erlang/OTP 28 Erts 16.1") == (0, ""))
+check(
+    "rebar3 3.28.0 passes behind plugin fetch lines",
+    rebar3_check(FETCH + "rebar 3.28.0 on Erlang/OTP 29 Erts 17.0") == (0, ""),
+)
+code, out = rebar3_check("rebar 3.27.0 on Erlang/OTP 29 Erts 17.0")
+check("rebar3 3.27.0 is refused", code == 1 and "this job runs rebar3 3.27.0" in out)
+code, out = rebar3_check(FETCH + "rebar 3.26.0 on Erlang/OTP 28 Erts 16.1")
+check("rebar3 3.26.0 is refused behind plugin fetch lines", code == 1 and "this job runs rebar3 3.26.0" in out)
+code, out = rebar3_check(FETCH.rstrip())
+check("an unreadable version warns and continues", code == 0 and "::warning::" in out)
+check(
+    "rebar3 version is read after compile",
+    preflight["run"].index("rebar3 compile") < preflight["run"].index("REBAR3=$("),
+)
 check("preflight refuses rebar3_hex before 7.5.0", "printf '%s\\n' 7.5.0 \"$HEX_VSN\"" in preflight["run"])
 publish_step = next(s for s in steps(publish) if s.get("name") == "Publish")
 check("publishes with rebar3 hex publish", "rebar3 hex publish" in publish_step["run"])
