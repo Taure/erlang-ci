@@ -162,14 +162,14 @@ on:
 
 jobs:
   release:
-    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.3.0
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.3.1
     permissions:
       contents: write
 
   hex-publish:
     needs: release
     if: needs.release.outputs.released == 'true'
-    uses: Taure/erlang-ci/.github/workflows/hex-publish.yml@v2.3.0
+    uses: Taure/erlang-ci/.github/workflows/hex-publish.yml@v2.3.1
     permissions:
       contents: read
       id-token: write
@@ -184,7 +184,7 @@ What the job does:
 1. Fails unless the run was triggered by `push`, `workflow_dispatch` or `release`.
 2. Checks out the tag with full history and refuses a tag that is not on the default branch.
 3. Installs OTP and rebar3 from `.tool-versions` (or the inputs) without restoring any cache.
-4. Fails if `HEX_API_KEY` is set, if OTP is older than 27, if rebar3_hex is older than 7.5, or if the version rebar3 computes differs from the tag.
+4. Fails if `HEX_API_KEY` is set, if OTP is older than 27, if rebar3 is older than 3.27.1, if rebar3_hex is older than 7.5, or if the version rebar3 computes differs from the tag.
 5. Runs `rebar3 hex publish --yes`, which publishes the package and its docs with the same token.
 6. Fails unless the release is then visible on hex.pm.
 
@@ -203,7 +203,7 @@ A push that produces no version bump creates no tag, so `released` is `"false"` 
 
 - The package already exists on hex.pm. See [First release](#first-release).
 - `rebar3_hex` 7.5 or later in `project_plugins`, for example `{rebar3_hex, "~> 7.5"}`, and a doc provider (`{hex, [{doc, ex_doc}]}`).
-- OTP 27 or later in the publish job.
+- OTP 27 or later and rebar3 3.27.1 or later in the publish job. A `.tool-versions` that pins an older rebar3 has to be raised.
 - One application in `src/` with `{vsn, "git"}`. Umbrella projects are not supported.
 - The publish job runs in the workflow run that a `push` to the default branch started.
 
@@ -280,14 +280,14 @@ on:
 jobs:
   release:
     if: github.event_name == 'push'
-    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.3.0
+    uses: Taure/erlang-ci/.github/workflows/release.yml@v2.3.1
     permissions:
       contents: write
 
   hex-publish:
     needs: release
     if: ${{ !cancelled() && (needs.release.outputs.released == 'true' || (github.event_name == 'workflow_dispatch' && inputs.hex-tag != '')) }}
-    uses: Taure/erlang-ci/.github/workflows/hex-publish.yml@v2.3.0
+    uses: Taure/erlang-ci/.github/workflows/hex-publish.yml@v2.3.1
     permissions:
       contents: read
       id-token: write
@@ -309,6 +309,7 @@ Run it from the default branch. The environment's branch rule refuses any other 
 | The publish job fails before its first step with an environment protection rules error | The ref that triggered the run is not allowed by the environment's branch rule |
 | `rebar3_hex ... is too old` or `rebar3_hex is not a plugin` | Add `{rebar3_hex, "~> 7.5"}` to `project_plugins` |
 | `Workload Identity needs OTP 27 or later` | Raise the OTP version in `.tool-versions` or pass `otp-version` |
+| `Workload Identity needs rebar3 3.27.1 or later`. On v2.3.0: `Uncaught error in rebar_core` right after the Code of Conduct lines | rebar3 before 3.27.1 has no Workload Identity support. Raise `rebar` in `.tool-versions` or pass `rebar3-version` |
 | `rebar3 computes version ... which does not match` | `vsn` is not `"git"`, or a newer tag exists than the one being published |
 | `is staged on hex.pm and is not in the registry` | Staged publishing is on. Approve the release on hex.pm, or turn the setting off |
 | Publishing fails because the package does not exist | The first release has to be published by hand |

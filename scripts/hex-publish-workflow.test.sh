@@ -98,6 +98,9 @@ check(
     "preflight precedes publish",
     "Preflight" in names and "Publish" in names and names.index("Preflight") < names.index("Publish"),
 )
+preflight = next(s for s in steps(publish) if s.get("name") == "Preflight")
+check("preflight refuses rebar3 before 3.27.1", "printf '%s\\n' 3.27.1 \"$REBAR3\"" in preflight["run"])
+check("preflight refuses rebar3_hex before 7.5.0", "printf '%s\\n' 7.5.0 \"$HEX_VSN\"" in preflight["run"])
 publish_step = next(s for s in steps(publish) if s.get("name") == "Publish")
 check("publishes with rebar3 hex publish", "rebar3 hex publish" in publish_step["run"])
 check("verifies the registry last", names[-1] == "Verify the release is on Hex")
